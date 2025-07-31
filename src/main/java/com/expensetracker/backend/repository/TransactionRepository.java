@@ -41,7 +41,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             "GROUP BY FUNCTION('TO_CHAR', t.date, 'YYYY-MM') " +
             "ORDER BY FUNCTION('TO_CHAR', t.date, 'YYYY-MM') ASC")
     List<Map<String, Object>> findMonthlySummary(@Param("userId") UUID userId);
-
+    
 
     // --- Phương thức để lấy dữ liệu cho DashboardService ---
     // Trả về một List, dùng để tính toán thống kê

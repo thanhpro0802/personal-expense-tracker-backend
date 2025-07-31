@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -16,97 +17,59 @@ import java.util.Date;
 public class JwtUtils {
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
 
-    // --- SỬA LỖI 1: Đồng bộ tên thuộc tính với application.properties ---
     @Value("${jwt.secret}")
     private String jwtSecret;
 
     @Value("${jwt.expiration.ms}")
-    private long jwtExpirationMs;
+    private int jwtExpirationMs;
 
-    // --- CẢI TIẾN 2: Thêm thuộc tính cho Refresh Token ---
-    @Value("${jwt.refresh.expiration.ms}")
-    private long jwtRefreshExpirationMs;
-
-    /**
-     * Tạo khóa ký (signing key) một cách an toàn từ chuỗi secret.
-     * @return Key đối tượng khóa để ký và xác thực.
-     */
-    private Key getSigningKey() {
-        byte[] keyBytes = this.jwtSecret.getBytes(StandardCharsets.UTF_8);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private Key key() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
     /**
-     * Tạo Access Token cho người dùng sau khi đăng nhập thành công.
-     * @param userPrincipal Thông tin chi tiết của người dùng đã được xác thực.
-     * @return Chuỗi Access Token JWT.
+     * === PHƯƠNG THỨC QUAN TRỌNG NHẤT CẦN SỬA ===
+     * Phương thức này phải tạo token với ID người dùng (UUID).
      */
-    public String generateAccessToken(UserDetailsImpl userPrincipal) {
-        String userId = userPrincipal.getId().toString();
-        logger.info("Generating access token for user ID: {}", userId);
-        return buildToken(userId, jwtExpirationMs);
-    }
+    public String generateJwtToken(Authentication authentication) {
+        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
-    /**
-     * Tạo Refresh Token cho người dùng.
-     * Phương thức này sẽ được gọi từ RefreshTokenService.
-     * @param userId ID của người dùng.
-     * @return Chuỗi Refresh Token JWT.
-     */
-    public String generateRefreshToken(String userId) {
-        logger.info("Generating refresh token for user ID: {}", userId);
-        return buildToken(userId, jwtRefreshExpirationMs);
-    }
+        // Lấy ID (là một đối tượng UUID) từ principal và chuyển nó thành chuỗi.
+        String userIdAsString = userPrincipal.getId().toString();
 
-    /**
-     * --- CẢI TIẾN 3: Phương thức private để xây dựng token, chống trùng lặp code ---
-     * Xây dựng một JWT với subject và thời gian hết hạn được cung cấp.
-     *
-     * @param subject Chủ thể của token (ở đây là User ID).
-     * @param expirationMs Thời gian hết hạn tính bằng mili giây.
-     * @return Chuỗi JWT đã được ký.
-     */
-    private String buildToken(String subject, long expirationMs) {
+        // Thêm log quan trọng để xác nhận code mới đang chạy
+        logger.info("Attempting to generate token for user ID: {}", userIdAsString);
+
         return Jwts.builder()
-                .setSubject(subject)
+                .setSubject(userIdAsString) // <-- Đảm bảo dòng này sử dụng ID, không phải getUsername()
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512) // Nâng cấp lên HS512 cho an toàn hơn
+                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
     /**
-     * Lấy User ID (dưới dạng chuỗi) từ một token.
-     * @param token Chuỗi JWT.
-     * @return User ID.
+     * Phương thức này lấy ID người dùng từ một token đã có.
      */
     public String getUserIdFromJwtToken(String token) {
         return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
+                .setSigningKey(key())
                 .build()
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
     }
 
-    /**
-     * Xác thực một chuỗi JWT.
-     * @param authToken Chuỗi JWT cần xác thực.
-     * @return true nếu token hợp lệ, false nếu không.
-     */
     public boolean validateJwtToken(String authToken) {
         try {
-            Jwts.parserBuilder().setSigningKey(getSigningKey()).build().parse(authToken);
+            Jwts.parserBuilder()
+                    .setSigningKey(key())
+                    .build()
+                    .parse(authToken);
             return true;
-        } catch (MalformedJwtException e) {
-            logger.error("Invalid JWT token: {}", e.getMessage());
-        } catch (ExpiredJwtException e) {
-            // Log ở mức TRACE hoặc INFO vì token hết hạn là chuyện bình thường, không phải lỗi hệ thống
-            logger.trace("JWT token is expired: {}", e.getMessage());
-        } catch (UnsupportedJwtException e) {
-            logger.error("JWT token is unsupported: {}", e.getMessage());
-        } catch (IllegalArgumentException e) {
-            logger.error("JWT claims string is empty: {}", e.getMessage());
+        } catch (Exception e) {
+            // Log lỗi nếu token không hợp lệ
+            logger.error("Invalid JWT Token: {}", e.getMessage());
         }
         return false;
     }
