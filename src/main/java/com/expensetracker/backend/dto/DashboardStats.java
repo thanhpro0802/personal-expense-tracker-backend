@@ -8,17 +8,26 @@ public class DashboardStats {
     private BigDecimal totalExpenses;
     private BigDecimal currentBalance;
     private List<MonthlyData> monthlyData;
-
+    private List<CategoryExpense> expenseByCategory;
     // Constructor, getters, setters
 
-    public DashboardStats(BigDecimal totalIncome, BigDecimal totalExpenses, BigDecimal currentBalance, List<MonthlyData> monthlyData) {
+    public DashboardStats(BigDecimal totalIncome, BigDecimal totalExpenses, BigDecimal currentBalance, List<MonthlyData> monthlyData, List<CategoryExpense> expenseByCategory) {
         this.totalIncome = totalIncome;
         this.totalExpenses = totalExpenses;
         this.currentBalance = currentBalance;
         this.monthlyData = monthlyData;
+        this.expenseByCategory = expenseByCategory; // <-- THÊM DÒNG NÀY
     }
 
     public DashboardStats() {}
+
+    public List<CategoryExpense> getExpenseByCategory() {
+        return expenseByCategory;
+    }
+
+    public void setExpenseByCategory(List<CategoryExpense> expenseByCategory) {
+        this.expenseByCategory = expenseByCategory;
+    }
 
     // Getters & Setters
     public BigDecimal getTotalIncome() {
@@ -51,6 +60,21 @@ public class DashboardStats {
 
     public void setMonthlyData(List<MonthlyData> monthlyData) {
         this.monthlyData = monthlyData;
+    }
+    public static class CategoryExpense {
+        private String category;
+        private BigDecimal amount;
+
+        public CategoryExpense(String category, BigDecimal amount) {
+            this.category = category;
+            this.amount = amount;
+        }
+
+        // Getters and Setters
+        public String getCategory() { return category; }
+        public void setCategory(String category) { this.category = category; }
+        public BigDecimal getAmount() { return amount; }
+        public void setAmount(BigDecimal amount) { this.amount = amount; }
     }
 
     public static class MonthlyData {

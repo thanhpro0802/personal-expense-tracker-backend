@@ -81,20 +81,27 @@ public class WebSecurityConfig {
     // Cấu hình HttpSecurity
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable()) // Vô hiệu hóa CSRF vì chúng ta sử dụng JWT (stateless)
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // Kích hoạt CORS với cấu hình của chúng ta
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler)) // Xử lý lỗi xác thực
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Vô hiệu hóa quản lý phiên (stateless)
+        http.csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/api/auth/**").permitAll() // Cho phép truy cập không cần xác thực cho các API liên quan đến xác thực (login, register)
-                                .requestMatchers("/api/users/all").permitAll() // Cho phép truy cập /api/users/all (chỉ để test, sau này sẽ bảo vệ)
-                                .requestMatchers("/api/categories/default").permitAll() // Cho phép truy cập các danh mục mặc định
-                                .anyRequest().authenticated() // Tất cả các yêu cầu khác đều cần xác thực
+                        auth
+                                // 1. Cho phép các API công khai
+                                .requestMatchers("/api/auth/**").permitAll()
+                                .requestMatchers("/api/users/all").permitAll() // Tạm thời cho test
+                                .requestMatchers("/api/categories/default").permitAll()
+
+                                // 2. Yêu cầu xác thực cho tất cả các API khác
+                                .requestMatchers("/api/**").authenticated()
+
+                                // 3. Cho phép tất cả các request còn lại (quan trọng nhất!)
+                                // Điều này cho phép trình duyệt tải frontend (index.html, css, js)
+                                .anyRequest().permitAll()
                 );
 
-        http.authenticationProvider(authenticationProvider()); // Đăng ký Authentication Provider
-
-        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class); // Thêm JWT filter trước UsernamePasswordAuthenticationFilter
+        http.authenticationProvider(authenticationProvider());
+        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

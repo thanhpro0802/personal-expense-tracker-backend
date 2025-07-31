@@ -1,14 +1,20 @@
 package com.expensetracker.backend.controller;
 
+import com.expensetracker.backend.exception.TokenRefreshException;
+import com.expensetracker.backend.model.RefreshToken;
 import com.expensetracker.backend.model.User;
 import com.expensetracker.backend.payload.request.LoginRequest;
 import com.expensetracker.backend.payload.request.SignupRequest;
+import com.expensetracker.backend.payload.request.TokenRefreshRequest;
 import com.expensetracker.backend.payload.response.JwtResponse;
 import com.expensetracker.backend.payload.response.MessageResponse;
+import com.expensetracker.backend.payload.response.TokenRefreshResponse;
 import com.expensetracker.backend.security.jwt.JwtUtils;
 import com.expensetracker.backend.security.services.UserDetailsImpl;
+import com.expensetracker.backend.service.RefreshTokenService;
 import com.expensetracker.backend.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -17,68 +23,93 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "http://localhost:5173") // Đảm bảo CORS cho auth endpoints
+@CrossOrigin(origins = "http://localhost:5173", maxAge = 3600)
 @RestController
-@RequestMapping("/api/auth") // Endpoint cho xác thực
+@RequestMapping("/api/auth")
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
-    private final UserService userService; // Sử dụng UserService để tạo người dùng
-    private final JwtUtils jwtUtils;
+    @Autowired
+    private AuthenticationManager authenticationManager;
 
-    public AuthController(AuthenticationManager authenticationManager, UserService userService, JwtUtils jwtUtils) {
-        this.authenticationManager = authenticationManager;
-        this.userService = userService;
-        this.jwtUtils = jwtUtils;
-    }
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    @Autowired
+    private RefreshTokenService refreshTokenService;
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        // Thực hiện xác thực
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
 
-        // Đặt đối tượng Authentication vào SecurityContextHolder
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        // Tạo JWT
-        String jwt = jwtUtils.generateJwtToken(authentication);
-
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        return ResponseEntity.ok(new JwtResponse(jwt,
+        // --- SỬA LỖI 1: Gọi đúng tên phương thức đã được đổi tên ---
+        // Tên mới là 'generateAccessToken' để rõ ràng hơn.
+        String accessToken = jwtUtils.generateAccessToken(userDetails);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
+
+        return ResponseEntity.ok(new JwtResponse(
+                accessToken,
+                refreshToken.getToken(),
                 userDetails.getId(),
                 userDetails.getUsername(),
-                userDetails.getEmail()));
+                userDetails.getEmail()
+        ));
     }
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest) {
-        // Kiểm tra username và email đã tồn tại chưa
         if (userService.getUserByUsername(signupRequest.getUsername()).isPresent()) {
-            return ResponseEntity
-                    .badRequest()
-                    .body(new MessageResponse("Error: Username is already taken!"));
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: Username is already taken!"));
         }
 
         if (userService.getUserByEmail(signupRequest.getEmail()).isPresent()) {
-            return ResponseEntity
-                    .badRequest()
-                    .body(new MessageResponse("Error: Email is already in use!"));
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: Email is already in use!"));
         }
 
-        // Tạo người dùng mới
-        User user = new User();
-        user.setUsername(signupRequest.getUsername());
-        user.setEmail(signupRequest.getEmail());
-        user.setName(signupRequest.getName());
-        user.setPasswordHash(signupRequest.getPassword()); // Mật khẩu sẽ được mã hóa trong UserService
-
+        // Logic tạo user đã được chuyển vào UserService để tuân thủ SOLID
         try {
-            userService.createUser(user); // Gọi UserService để lưu người dùng
+            userService.createUser(signupRequest);
             return ResponseEntity.status(HttpStatus.CREATED).body(new MessageResponse("User registered successfully!"));
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("Error: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new MessageResponse("An unexpected error occurred during registration."));
         }
+    }
+
+    @PostMapping("/refreshtoken")
+    public ResponseEntity<?> refreshtoken(@Valid @RequestBody TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    // --- SỬA LỖI 2: Gọi đúng phương thức để tạo Access Token mới ---
+                    // Chúng ta cần tạo một đối tượng UserDetailsImpl từ User để tạo token
+                    UserDetailsImpl userDetails = UserDetailsImpl.build(user);
+                    String newAccessToken = jwtUtils.generateAccessToken(userDetails);
+
+                    // Trả về access token mới và refresh token cũ (hoặc có thể tạo mới cả refresh token)
+                    return ResponseEntity.ok(new TokenRefreshResponse(newAccessToken, requestRefreshToken));
+                })
+                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken, "Refresh token is not in database!"));
+    }
+
+    @PostMapping("/signout")
+    public ResponseEntity<?> logoutUser() {
+        // Lấy thông tin user từ SecurityContext
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof UserDetailsImpl) {
+            UserDetailsImpl userDetails = (UserDetailsImpl) principal;
+            // Xóa refresh token khỏi DB để vô hiệu hóa nó
+            refreshTokenService.deleteByUserId(userDetails.getId());
+        }
+        return ResponseEntity.ok(new MessageResponse("Log out successful!"));
     }
 }

@@ -1,5 +1,6 @@
 package com.expensetracker.backend.security.jwt;
 
+import com.expensetracker.backend.security.services.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,8 +16,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-
-import com.expensetracker.backend.security.services.UserDetailsServiceImpl;
+import java.util.UUID; // Thêm import này
 
 public class AuthTokenFilter extends OncePerRequestFilter {
 
@@ -28,44 +28,46 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
+    /**
+     * --- SỬA LỖI TẠI ĐÂY ---
+     * Thay đổi toàn bộ logic để làm việc với User ID thay vì username.
+     */
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            logger.info("Received JWT: {}", jwt);
 
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-                logger.info("JWT validated. Extracting username...");
-                String username = jwtUtils.getUserNameFromJwtToken(jwt);
-                logger.info("Username from token: {}", username);
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                logger.info("UserDetails loaded: {}", userDetails != null ? userDetails.getUsername() : "null");
-                if (userDetails != null) {
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
-                    logger.info("Authentication set for user: {}", username);
-                } else {
-                    logger.warn("UserDetails is null after loading.");
-                }
-            } else {
-                logger.warn("JWT validation failed or token not present.");
+                // 1. Lấy User ID (dạng chuỗi) từ token
+                String userIdStr = jwtUtils.getUserIdFromJwtToken(jwt);
+                UUID userId = UUID.fromString(userIdStr); // Chuyển đổi về UUID
+
+                // 2. Tải UserDetails bằng ID
+                UserDetails userDetails = userDetailsService.loadUserById(userId);
+
+                // 3. Tạo đối tượng Authentication
+                // Đối tượng này chứa đầy đủ thông tin UserDetails (bao gồm cả ID và username)
+                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        userDetails, null, userDetails.getAuthorities());
+
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+
+                // 4. Đặt Authentication vào SecurityContext
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+                logger.info("Authentication set for user ID: {}", userId);
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e.getMessage(), e);
+            logger.error("Cannot set user authentication: {}", e.getMessage());
         }
         filterChain.doFilter(request, response);
     }
 
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
-
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7); // remove "Bearer "
+            return headerAuth.substring(7);
         }
-
         return null;
     }
 }

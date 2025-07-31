@@ -3,95 +3,104 @@ package com.expensetracker.backend.service;
 import com.expensetracker.backend.model.Transaction;
 import com.expensetracker.backend.model.User;
 import com.expensetracker.backend.repository.TransactionRepository;
-import com.expensetracker.backend.repository.UserRepository;
+import com.expensetracker.backend.service.specifications.TransactionSpecifications;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@Transactional
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
-    private final UserRepository userRepository;
 
-    public TransactionService(TransactionRepository transactionRepository, UserRepository userRepository) {
+    @Autowired
+    public TransactionService(TransactionRepository transactionRepository) {
         this.transactionRepository = transactionRepository;
-        this.userRepository = userRepository;
     }
 
-    @Transactional(readOnly = true)
-    public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
-    }
+    public Page<Transaction> getFilteredTransactions(UUID userId, String type, String category, String search,
+                                                     LocalDate dateFrom, LocalDate dateTo,
+                                                     int page, int size, String[] sort) {
 
-    @Transactional(readOnly = true)
-    public Optional<Transaction> getTransactionById(UUID id) {
-        return transactionRepository.findById(id);
-    }
+        // --- SỬA LỖI DEPRECATION TẠI ĐÂY ---
+        // Bắt đầu trực tiếp với Specification đầu tiên, không cần dùng Specification.where()
+        Specification<Transaction> spec = TransactionSpecifications.withUserId(userId);
 
-    @Transactional(readOnly = true)
-    public List<Transaction> getUserTransactions(UUID userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        return transactionRepository.findByUser(user);
-    }
-
-    @Transactional(readOnly = true)
-    public List<Transaction> getUserTransactionsBetweenDates(UUID userId, LocalDate startDate, LocalDate endDate) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
-        return transactionRepository.findByUserAndDateBetween(user, startDate, endDate);
-    }
-
-    @Transactional
-    public Transaction createTransaction(Transaction transaction) {
-        // Kiểm tra user tồn tại
-        User user = userRepository.findById(transaction.getUser().getId())
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + transaction.getUser().getId()));
-
-        transaction.setUser(user);
-
-        // Kiểm tra giá trị type hợp lệ (income hoặc expense)
-        if (transaction.getType() == null) {
-            throw new RuntimeException("Transaction type is required");
+        // Các điều kiện sau được nối vào bằng .and() như bình thường
+        if (type != null && !type.isEmpty() && !type.equalsIgnoreCase("all")) {
+            spec = spec.and(TransactionSpecifications.withType(type));
+        }
+        if (category != null && !category.isEmpty()) {
+            spec = spec.and(TransactionSpecifications.withCategory(category));
+        }
+        if (search != null && !search.isEmpty()) {
+            spec = spec.and(TransactionSpecifications.withSearchText(search));
+        }
+        if (dateFrom != null) {
+            spec = spec.and(TransactionSpecifications.withDateFrom(dateFrom));
+        }
+        if (dateTo != null) {
+            spec = spec.and(TransactionSpecifications.withDateTo(dateTo));
         }
 
-        // category chỉ là String nên không kiểm tra thêm
+        // Xử lý thông tin sắp xếp (sorting)
+        List<Sort.Order> orders = new ArrayList<>();
+        if (sort[0].contains(",")) {
+            for (String sortOrder : sort) {
+                String[] _sort = sortOrder.split(",");
+                orders.add(new Sort.Order(Sort.Direction.fromString(_sort[1]), _sort[0]));
+            }
+        } else {
+            orders.add(new Sort.Order(Sort.Direction.fromString(sort[1]), sort[0]));
+        }
 
+        // Tạo đối tượng Pageable
+        Pageable pageable = PageRequest.of(page, size, Sort.by(orders));
+
+        // Thực thi truy vấn
+        return transactionRepository.findAll(spec, pageable);
+    }
+
+    public Transaction createTransaction(Transaction transaction, UUID userId) {
+        User userReference = new User();
+        userReference.setId(userId);
+        transaction.setUser(userReference);
         return transactionRepository.save(transaction);
     }
 
-    @Transactional
-    public Transaction updateTransaction(UUID id, Transaction transactionDetails, UUID userId) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Transaction not found with id: " + id));
+    public Transaction updateTransaction(UUID transactionId, Transaction transactionDetails, UUID userId) {
+        Transaction existingTransaction = transactionRepository.findById(transactionId)
+                .filter(t -> t.getUser().getId().equals(userId))
+                .orElseThrow(() -> new SecurityException("Transaction not found or access denied"));
 
-        if (!transaction.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Access Denied: You do not have permission to update this transaction.");
-        }
+        existingTransaction.setTitle(transactionDetails.getTitle());
+        existingTransaction.setAmount(transactionDetails.getAmount());
+        existingTransaction.setDate(transactionDetails.getDate());
+        existingTransaction.setCategory(transactionDetails.getCategory());
+        existingTransaction.setType(transactionDetails.getType());
 
-        transaction.setTitle(transactionDetails.getTitle());
-        transaction.setAmount(transactionDetails.getAmount());
-        transaction.setDate(transactionDetails.getDate());
-        transaction.setCategory(transactionDetails.getCategory());
-        transaction.setType(transactionDetails.getType());
-
-        return transactionRepository.save(transaction);
+        return transactionRepository.save(existingTransaction);
     }
 
-    @Transactional
-    public void deleteTransaction(UUID id, UUID userId) {
-        Transaction transaction = transactionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Transaction not found with id: " + id));
-
-        if (!transaction.getUser().getId().equals(userId)) {
-            throw new RuntimeException("Access Denied: You do not have permission to delete this transaction.");
+    public void deleteTransaction(UUID transactionId, UUID userId) {
+        if (!transactionRepository.existsById(transactionId)) {
+            throw new RuntimeException("Transaction not found");
         }
+        transactionRepository.findById(transactionId)
+                .filter(t -> t.getUser().getId().equals(userId))
+                .orElseThrow(() -> new SecurityException("Access denied to delete this transaction"));
 
-        transactionRepository.delete(transaction);
+        transactionRepository.deleteById(transactionId);
     }
 }

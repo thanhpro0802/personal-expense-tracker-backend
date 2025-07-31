@@ -1,5 +1,6 @@
 package com.expensetracker.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore; // <-- THÊM IMPORT NÀY
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +27,7 @@ public class Transaction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
+    @JsonIgnore // <-- SỬA LỖI Ở ĐÂY: Ngăn Jackson serialize trường này
     private User user;
 
     @Column(name = "title", nullable = false)
