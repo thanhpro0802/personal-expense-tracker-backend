@@ -19,6 +19,7 @@ import java.io.IOException;
 import com.expensetracker.backend.security.services.UserDetailsServiceImpl;
 
 public class AuthTokenFilter extends OncePerRequestFilter {
+
     @Autowired
     private JwtUtils jwtUtils;
 
@@ -32,34 +33,37 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
+            logger.info("Received JWT: {}", jwt);
+
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+                logger.info("JWT validated. Extracting username...");
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
-
+                logger.info("Username from token: {}", username);
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-                // Tạo đối tượng Authentication và đặt vào SecurityContextHolder
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails,
-                                null,
-                                userDetails.getAuthorities());
-
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                logger.info("UserDetails loaded: {}", userDetails != null ? userDetails.getUsername() : "null");
+                if (userDetails != null) {
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    logger.info("Authentication set for user: {}", username);
+                } else {
+                    logger.warn("UserDetails is null after loading.");
+                }
+            } else {
+                logger.warn("JWT validation failed or token not present.");
             }
         } catch (Exception e) {
-            logger.error("Cannot set user authentication: {}", e.getMessage());
+            logger.error("Cannot set user authentication: {}", e.getMessage(), e);
         }
-
         filterChain.doFilter(request, response);
     }
 
-    // Trích xuất JWT từ Header Authorization
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
 
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7); // Bỏ qua "Bearer "
+            return headerAuth.substring(7); // remove "Bearer "
         }
 
         return null;

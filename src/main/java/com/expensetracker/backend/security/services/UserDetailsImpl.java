@@ -17,30 +17,36 @@ public class UserDetailsImpl implements UserDetails {
     private String username;
     private String email;
 
-    @JsonIgnore // Không hiển thị password_hash khi serialize thành JSON
+    @JsonIgnore
     private String password;
 
-    // Hiện tại chúng ta không có vai trò (roles) trong thiết kế database
-    // Nhưng UserDetails cần phương thức này.
-    // Nếu sau này bạn thêm Roles, bạn sẽ cần triển khai nó tại đây.
+    private transient User user; // ⬅ lưu User entity gốc (không serialize JSON)
+
     private Collection<? extends GrantedAuthority> authorities;
 
-    public UserDetailsImpl(UUID id, String username, String email, String password) {
+    public UserDetailsImpl(UUID id, String username, String email, String password, User user,
+                           Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.password = password;
-        // Hiện tại không có authorities/roles, nên trả về empty list
-        this.authorities = Collections.emptyList();
+        this.user = user;
+        this.authorities = authorities;
     }
 
-    // Phương thức tĩnh để xây dựng UserDetailsImpl từ đối tượng User
     public static UserDetailsImpl build(User user) {
         return new UserDetailsImpl(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
-                user.getPasswordHash());
+                user.getPasswordHash(),
+                user,
+                Collections.singletonList(() -> "ROLE_USER")); // Thêm role mặc định
+    }
+
+    // ✅ Thêm phương thức này
+    public User getUser() {
+        return user;
     }
 
     // Getters

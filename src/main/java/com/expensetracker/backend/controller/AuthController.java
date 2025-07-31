@@ -17,7 +17,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "http://localhost:3000") // Đảm bảo CORS cho auth endpoints
+@CrossOrigin(origins = "http://localhost:5173") // Đảm bảo CORS cho auth endpoints
 @RestController
 @RequestMapping("/api/auth") // Endpoint cho xác thực
 public class AuthController {
@@ -71,6 +71,7 @@ public class AuthController {
         User user = new User();
         user.setUsername(signupRequest.getUsername());
         user.setEmail(signupRequest.getEmail());
+        user.setName(signupRequest.getName());
         user.setPasswordHash(signupRequest.getPassword()); // Mật khẩu sẽ được mã hóa trong UserService
 
         try {

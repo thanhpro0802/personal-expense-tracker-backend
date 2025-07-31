@@ -4,6 +4,7 @@ import com.expensetracker.backend.model.Transaction;
 import com.expensetracker.backend.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,11 +16,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByUser(User user);
 
     // Tìm giao dịch của một người dùng trong một khoảng thời gian
-    List<Transaction> findByUserAndTransactionDateBetween(User user, LocalDate startDate, LocalDate endDate);
+    List<Transaction> findByUserAndDateBetween(User user, LocalDate startDate, LocalDate endDate);
 
-    // Tìm giao dịch của một người dùng theo danh mục
-    List<Transaction> findByUserAndCategory(User user, com.expensetracker.backend.model.Category category);
+    // Tìm giao dịch của một người dùng theo category (chuỗi)
+    List<Transaction> findByUserAndCategory(User user, String category);
 
-    // Tìm giao dịch của một người dùng theo loại (INCOME/EXPENSE)
-    List<Transaction> findByUserAndType(User user, com.expensetracker.backend.model.Category.CategoryType type);
+    // Tìm giao dịch của một người dùng theo loại (income/expense)
+    List<Transaction> findByUserAndType(User user, Transaction.TransactionType type);
+
+    List<Transaction> findByUser(User user, Pageable pageable);
+
+    List<Transaction> findByUserId(UUID userId);
+
+    List<Transaction> findByUserId(UUID userId, Pageable pageable);
 }
