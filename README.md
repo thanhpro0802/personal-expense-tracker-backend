@@ -6,113 +6,112 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![JWT](https://img.shields.io/badge/Authentication-JWT-F0C808?logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
 
-Đây là dự án backend cho ứng dụng Quản lý Chi tiêu (Expense Tracker), được xây dựng bằng **Spring Boot**. Hệ thống cung cấp một bộ các REST API an toàn để xử lý logic nghiệp vụ, quản lý người dùng, xác thực và lưu trữ dữ liệu.
+This is the backend project for the **Expense Tracker** application, built with **Spring Boot**. The system provides a set of secure REST APIs to handle business logic, user management, authentication, and data storage.
 
-Backend được thiết kế để hoạt động với bất kỳ frontend nào (React, Vue, Angular, mobile...) có khả năng giao tiếp qua HTTP.
+The backend is designed to work with any frontend (React, Vue, Angular, mobile, etc.) that can communicate via HTTP.
 
-## ✨ Các tính năng chính
+## ✨ Key Features
 
-- **REST APIs:** Cung cấp các API theo chuẩn RESTful để quản lý tài nguyên.
-- **Bảo mật toàn diện:** Tích hợp **Spring Security 6** để bảo vệ các endpoint.
-- **Xác thực bằng JWT:** Sử dụng JSON Web Token (JWT) với cơ chế **Access Token** và **Refresh Token** để đảm bảo xác thực an toàn và linh hoạt.
-- **Quản lý người dùng:** Cung cấp đầy đủ các chức năng đăng ký, đăng nhập, đăng xuất.
-- **Persistence:** Sử dụng **Spring Data JPA** và **Hibernate** để tương tác với cơ sở dữ liệu.
-- **Xử lý lỗi tập trung:** Định nghĩa các Exception tùy chỉnh (`ResourceNotFoundException`, `BadRequestException`, `TokenRefreshException`) để trả về các mã lỗi HTTP có ngữ cảnh rõ ràng.
-- **Validation:** Sử dụng `jakarta.validation` để kiểm tra tính hợp lệ của dữ liệu đầu vào.
+- **REST APIs:** Provides RESTful APIs for resource management.
+- **Comprehensive Security:** Integrates **Spring Security 6** to protect endpoints.
+- **JWT Authentication:** Uses JSON Web Tokens (JWT) with **Access Token** and **Refresh Token** mechanisms for secure and flexible authentication.
+- **User Management:** Offers full functionality for user registration, login, and logout.
+- **Persistence:** Uses **Spring Data JPA** and **Hibernate** to interact with the database.
+- **Centralized Error Handling:** Defines custom Exceptions (ResourceNotFoundException, BadRequestException, TokenRefreshException) to return clear, contextual HTTP error codes.
+- **Validation:** Uses `jakarta.validation` to validate input data.
 
-## 🛠️ Công nghệ sử dụng
+## 🛠️ Technologies Used
 
-- **Ngôn ngữ:** [Java 17](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
+- **Language:** [Java 17](https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html)
 - **Framework:** [Spring Boot 3.x](https://spring.io/projects/spring-boot)
-- **Bảo mật:** [Spring Security 6.x](https://spring.io/projects/spring-security)
-- **Cơ sở dữ liệu:** [Spring Data JPA](https://spring.io/projects/spring-data-jpa)
+- **Security:** [Spring Security 6.x](https://spring.io/projects/spring-security)
+- **Database Persistence:** [Spring Data JPA](https://spring.io/projects/spring-data-jpa)
 - **JWT Library:** `io.jsonwebtoken`
-- **Database:** [PostgreSQL](https://www.postgresql.org/) (Có thể dễ dàng chuyển sang MySQL, H2,...)
+- **Database:** [PostgreSQL](https://www.postgresql.org/) (can be easily switched to MySQL, H2, etc.)
 - **Build Tool:** [Apache Maven](https://maven.apache.org/)
 
-## 🚀 Cài đặt và Chạy dự án
+## 🚀 Setup and Running the Project
 
-### Yêu cầu tiên quyết
+### Prerequisites
 
-- JDK 17 hoặc cao hơn.
+- JDK 17 or higher.
 - Apache Maven 3.6+
-- Một instance của PostgreSQL đang chạy.
+- A running instance of PostgreSQL.
 
-### Các bước cài đặt
+### Installation Steps
 
-1.  **Clone repository về máy:**
-    ```bash
-     git clone https://github.com/thanhpro0802/personal-expense-tracker-backend.git
-    cd personal-expense-tracker-backend
+1. **Clone the repository:**
+
+   ```bash
+   git clone [https://github.com/thanhpro0802/personal-expense-tracker-backend.git](https://github.com/thanhpro0802/personal-expense-tracker-backend.git)
+   cd personal-expense-tracker-backend
     ```
 
-2.  **Cấu hình Cơ sở dữ liệu:**
-    - Mở PostgreSQL và tạo một database mới, ví dụ: `expense_tracker_db`.
+2.  **Configure the Database:**
+    - Open PostgreSQL and create a new database, for example: `expense_tracker_db`.
 
-3.  **Cấu hình ứng dụng:**
-    - Mở file `src/main/resources/application.properties`.
-    - Cập nhật thông tin kết nối database và các khóa bí mật cho JWT. Dưới đây là một mẫu cấu hình:
+3.  **Configure the Application:**
+    - Open the src/main/resources/application.properties file..
+    - Update the database connection information and the secret keys for JWT. Below is a sample configuration:
 
     ```properties name=src/main/resources/application.properties
     # Server Port
     server.port=8080
-
+    
     # PostgreSQL Database Connection
     spring.datasource.url=jdbc:postgresql://localhost:5432/expense_tracker_db
     spring.datasource.username=your_postgres_username
     spring.datasource.password=your_postgres_password
     spring.datasource.driver-class-name=org.postgresql.Driver
-
+    
     # JPA and Hibernate Configuration
     spring.jpa.hibernate.ddl-auto=update
     spring.jpa.show-sql=true
     spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.PostgreSQLDialect
     spring.jpa.properties.hibernate.format_sql=true
-
+    
     # JWT Secret and Expiration
-    # --- QUAN TRỌNG: Hãy thay đổi chuỗi secret này thành một chuỗi ngẫu nhiên và an toàn của riêng bạn! ---
+    # --- IMPORTANT: Change this secret string to your own random and secure string! ---
     expensetracker.app.jwtSecret======================ThanhProJWTSecret======================
-    # Thời gian hết hạn của Access Token (ví dụ: 15 phút)
+    # Access Token expiration time (e.g., 15 minutes)
     expensetracker.app.jwtExpirationMs=900000
-    # Thời gian hết hạn của Refresh Token (ví dụ: 7 ngày)
+    # Refresh Token expiration time (e.g., 7 days)
     expensetracker.app.jwtRefreshExpirationMs=604800000
     ```
 
-4.  **Build dự án:**
-    Sử dụng Maven để build và đóng gói ứng dụng:
+4.  **Build the Project:**
+   Use Maven to build and package the application:
     ```bash
     mvn clean install
     ```
 
-5.  **Chạy ứng dụng:**
+5.  **Run the Application:**
     ```bash
     mvn spring-boot:run
     ```
-    Backend sẽ khởi động và chạy trên cổng `8080`.
+    The backend will start and run on port 8080.
 
-## 📖 Danh sách API Endpoints
-
-Dưới đây là các API chính được cung cấp bởi hệ thống.
+## 📖 API Endpoints
 
 ### **Authentication (`/api/auth`)**
 
-| Method | Endpoint          | Mô tả                                                              |
-| :----- | :---------------- | :----------------------------------------------------------------- |
-| `POST` | `/signup`         | Đăng ký một tài khoản người dùng mới.                              |
-| `POST` | `/signin`         | Đăng nhập và nhận về Access Token và Refresh Token.                |
-| `POST` | `/refreshtoken`   | Gửi Refresh Token để nhận một Access Token mới.                    |
-| `POST` | `/signout`        | Đăng xuất người dùng (vô hiệu hóa Refresh Token).                  |
+| Method | Endpoint          | Description                                                            |
+| :----- | :---------------- | :--------------------------------------------------------------------- |
+| `POST` | `/signup`         | Registers a new user account.                                          |
+| `POST` | `/signin`         | Logs in and receives an Access Token.                                  |                   
+| `POST` | `/refreshtoken`   | Submits a Refresh Token to get a new Access Token.                     |
+| `POST` | `/signout`        | Logs out the user.                                                     |
 
 ### **User Management (`/api/users`)**
 
-_Lưu ý: Các endpoint này thường yêu cầu quyền quản trị (ADMIN) trong một ứng dụng thực tế._
+_Note: These endpoints typically require administrative privileges (ADMIN) in a real-world application._
 
-| Method | Endpoint   | Mô tả                                |
+| Method | Endpoint   | Description                          |
 | :----- | :--------- | :----------------------------------- |
-| `GET`  | `/`        | Lấy danh sách tất cả người dùng.     |
-| `GET`  | `/{id}`    | Lấy thông tin người dùng theo ID.    |
-| `PUT`  | `/{id}`    | Cập nhật thông tin người dùng.       |
-| `DELETE`| `/{id}`   | Xóa một người dùng.                  |
+| `GET`  | `/`        | Retrieves a list of all users.       |
+| `GET`  | `/{id}`    | Retrieves user information by ID.    |
+| `PUT`  | `/{id}`    | Updates user information.            |
+| `DELETE`| `/{id}`   | Deletes a user.                      |
 
 ## ✨ Author
 
