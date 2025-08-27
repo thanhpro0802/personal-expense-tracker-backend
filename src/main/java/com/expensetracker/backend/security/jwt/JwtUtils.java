@@ -65,7 +65,7 @@ public class JwtUtils {
             Jwts.parserBuilder()
                     .setSigningKey(key())
                     .build()
-                    .parse(authToken);
+                    .parseClaimsJws(authToken);
             return true;
         } catch (Exception e) {
             // Log lỗi nếu token không hợp lệ
