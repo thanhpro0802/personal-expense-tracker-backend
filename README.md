@@ -56,7 +56,7 @@ The backend is designed to work with any frontend (React, Vue, Angular, mobile, 
 
     ```properties name=src/main/resources/application.properties
     # Server Port
-    server.port=8080
+    server.port=8081
     
     # PostgreSQL Database Connection
     spring.datasource.url=jdbc:postgresql://localhost:5432/expense_tracker_db
