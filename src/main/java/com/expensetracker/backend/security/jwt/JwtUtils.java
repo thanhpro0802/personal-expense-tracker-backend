@@ -20,8 +20,11 @@ public class JwtUtils {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration.ms}")
-    private int jwtExpirationMs;
+    @Value("${jwt.access.expiration.ms}")
+    private int jwtAccessExpirationMs;
+
+    @Value("${jwt.refresh.expiration.ms}")
+    private long jwtRefreshExpirationMs;
 
     private Key key() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
@@ -43,7 +46,7 @@ public class JwtUtils {
         return Jwts.builder()
                 .setSubject(userIdAsString) // <-- Đảm bảo dòng này sử dụng ID, không phải getUsername()
                 .setIssuedAt(new Date())
-                .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .setExpiration(new Date((new Date()).getTime() + jwtAccessExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -58,6 +61,15 @@ public class JwtUtils {
                 .parseClaimsJws(token)
                 .getBody()
                 .getSubject();
+    }
+
+    public String generateTokenFromUserId(String userId) {
+        return Jwts.builder()
+                .setSubject(userId)
+                .setIssuedAt(new Date())
+                .setExpiration(new Date((new Date()).getTime() + jwtAccessExpirationMs))
+                .signWith(key(), SignatureAlgorithm.HS256)
+                .compact();
     }
 
     public boolean validateJwtToken(String authToken) {

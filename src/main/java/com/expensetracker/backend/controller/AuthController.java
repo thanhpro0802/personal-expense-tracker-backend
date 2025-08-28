@@ -1,12 +1,17 @@
 package com.expensetracker.backend.controller;
 
+import com.expensetracker.backend.exception.TokenRefreshException;
+import com.expensetracker.backend.model.RefreshToken;
 import com.expensetracker.backend.model.User;
 import com.expensetracker.backend.payload.request.LoginRequest;
 import com.expensetracker.backend.payload.request.SignupRequest;
+import com.expensetracker.backend.payload.request.TokenRefreshRequest;
 import com.expensetracker.backend.payload.response.JwtResponse;
 import com.expensetracker.backend.payload.response.MessageResponse;
+import com.expensetracker.backend.payload.response.TokenRefreshResponse;
 import com.expensetracker.backend.security.jwt.JwtUtils;
 import com.expensetracker.backend.security.services.UserDetailsImpl;
+import com.expensetracker.backend.service.RefreshTokenService;
 import com.expensetracker.backend.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -14,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,11 +31,14 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final UserService userService; // Sử dụng UserService để tạo người dùng
     private final JwtUtils jwtUtils;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthController(AuthenticationManager authenticationManager, UserService userService, JwtUtils jwtUtils) {
+    public AuthController(AuthenticationManager authenticationManager, UserService userService, 
+                         JwtUtils jwtUtils, RefreshTokenService refreshTokenService) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
         this.jwtUtils = jwtUtils;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @PostMapping("/signin")
@@ -41,12 +50,15 @@ public class AuthController {
         // Đặt đối tượng Authentication vào SecurityContextHolder
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Tạo JWT
+        // Tạo JWT access token
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        
+        // Tạo refresh token
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(userDetails.getId());
 
-        return ResponseEntity.ok(new JwtResponse(jwt,
+        return ResponseEntity.ok(new JwtResponse(jwt, refreshToken.getToken(),
                 userDetails.getId(),
                 userDetails.getUsername(),
                 userDetails.getEmail()));
@@ -80,5 +92,28 @@ public class AuthController {
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("Error: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/refreshtoken")
+    public ResponseEntity<?> refreshtoken(@Valid @RequestBody TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    String token = jwtUtils.generateTokenFromUserId(user.getId().toString());
+                    return ResponseEntity.ok(new TokenRefreshResponse(token, requestRefreshToken));
+                })
+                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
+                        "Refresh token is not in database!"));
+    }
+
+    @PostMapping("/signout")
+    public ResponseEntity<?> logoutUser(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        if (userDetails != null) {
+            refreshTokenService.deleteByUserId(userDetails.getId());
+        }
+        return ResponseEntity.ok(new MessageResponse("Log out successful!"));
     }
 }
