@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@Transactional // Ensure write operations run within a transaction
 public class RefreshTokenService {
 
     @Value("${jwt.refresh.expiration.ms}")
@@ -26,10 +27,13 @@ public class RefreshTokenService {
     @Autowired
     private UserRepository userRepository;
 
+    @Transactional(readOnly = true)
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
     }
 
+    // Run delete + save in one transaction (fixes TransactionRequiredException)
+    @Transactional
     public RefreshToken createRefreshToken(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
@@ -46,11 +50,14 @@ public class RefreshTokenService {
         return refreshTokenRepository.save(refreshToken);
     }
 
+    @Transactional(readOnly = true)
     public RefreshToken verifyExpiration(RefreshToken token) {
         if (token.getExpiryDate().isBefore(LocalDateTime.now())) {
+            // This delete requires a transaction; since class is @Transactional,
+            // it will participate in the existing one if called from a tx boundary.
             refreshTokenRepository.delete(token);
-            throw new TokenRefreshException(token.getToken(), 
-                "Refresh token was expired. Please make a new signin request");
+            throw new TokenRefreshException(token.getToken(),
+                    "Refresh token was expired. Please make a new signin request");
         }
         return token;
     }

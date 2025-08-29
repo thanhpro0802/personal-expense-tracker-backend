@@ -1,6 +1,5 @@
 package com.expensetracker.backend.security.jwt;
 
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -18,9 +17,12 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
-            throws IOException, ServletException {
+            throws IOException {
         logger.error("Unauthorized error: {}", authException.getMessage());
-        // Trả về lỗi 401 Unauthorized khi người dùng không được xác thực
-        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Error: Unauthorized");
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        String body = "{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"" +
+                (authException.getMessage() != null ? authException.getMessage() : "Unauthorized") + "\"}";
+        response.getWriter().write(body);
     }
 }
