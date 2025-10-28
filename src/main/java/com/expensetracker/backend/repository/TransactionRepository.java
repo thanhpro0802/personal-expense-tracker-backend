@@ -41,7 +41,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             "GROUP BY FUNCTION('TO_CHAR', t.date, 'YYYY-MM') " +
             "ORDER BY FUNCTION('TO_CHAR', t.date, 'YYYY-MM') ASC")
     List<Map<String, Object>> findMonthlySummary(@Param("userId") UUID userId);
-    
+    /**
+     * Tính tổng chi tiêu (expense) cho mỗi danh mục
+     * của một người dùng trong một tháng và năm cụ thể.
+     */
+    @Query("SELECT new map(t.category as category, SUM(t.amount) as spent) " +
+            "FROM Transaction t " +
+            "WHERE t.user.id = :userId AND t.type = 'expense' " +
+            "AND FUNCTION('YEAR', t.date) = :year " +
+            "AND FUNCTION('MONTH', t.date) = :month " +
+            "GROUP BY t.category")
+    List<Map<String, Object>> findExpenseSumByCategoryAndMonthYear(
+            @Param("userId") UUID userId,
+            @Param("month") int month,
+            @Param("year") int year
+    );
 
     // --- Phương thức để lấy dữ liệu cho DashboardService ---
     // Trả về một List, dùng để tính toán thống kê
