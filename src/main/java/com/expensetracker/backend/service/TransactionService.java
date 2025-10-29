@@ -2,7 +2,7 @@ package com.expensetracker.backend.service;
 
 import com.expensetracker.backend.model.Budget;
 import com.expensetracker.backend.model.Transaction;
-import com.expensetracker.backend.model.User;
+import com.expensetracker.backend.model.Wallet;
 import com.expensetracker.backend.repository.BudgetRepository;
 import com.expensetracker.backend.repository.TransactionRepository;
 import com.expensetracker.backend.service.specifications.TransactionSpecifications;
@@ -12,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,18 +30,30 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
+    private final WalletService walletService;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    public TransactionService(TransactionRepository transactionRepository, BudgetRepository budgetRepository) {
+    public TransactionService(TransactionRepository transactionRepository, 
+                            BudgetRepository budgetRepository,
+                            WalletService walletService,
+                            SimpMessagingTemplate messagingTemplate) {
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
+        this.walletService = walletService;
+        this.messagingTemplate = messagingTemplate;
     }
 
-    public Page<Transaction> getFilteredTransactions(UUID userId, String type, String category, String search,
+    public Page<Transaction> getFilteredTransactions(UUID walletId, UUID userId, String type, String category, String search,
                                                      LocalDate dateFrom, LocalDate dateTo,
                                                      int page, int size, String[] sort) {
 
-        Specification<Transaction> spec = TransactionSpecifications.withUserId(userId);
+        // Kiểm tra quyền truy cập
+        if (!walletService.isUserMemberOfWallet(walletId, userId)) {
+            throw new SecurityException("User is not a member of this wallet");
+        }
+
+        Specification<Transaction> spec = TransactionSpecifications.withWalletId(walletId);
 
         if (type != null && !type.isEmpty() && !type.equalsIgnoreCase("all")) {
             spec = spec.and(TransactionSpecifications.withType(type));
@@ -71,25 +85,39 @@ public class TransactionService {
         return transactionRepository.findAll(spec, pageable);
     }
 
-    public Transaction createTransaction(Transaction transaction, UUID userId) {
-        User userReference = new User();
-        userReference.setId(userId);
-        transaction.setUser(userReference);
+    public Transaction createTransaction(Transaction transaction, UUID walletId, UUID userId) {
+        // Kiểm tra quyền truy cập
+        if (!walletService.isUserMemberOfWallet(walletId, userId)) {
+            throw new SecurityException("User is not a member of this wallet");
+        }
+
+        Wallet walletReference = new Wallet();
+        walletReference.setId(walletId);
+        transaction.setWallet(walletReference);
         Transaction savedTransaction = transactionRepository.save(transaction);
 
         // Logic cập nhật budget - Sửa lại thành chữ thường
         if (savedTransaction.getType() == Transaction.TransactionType.expense) {
-            updateBudgetSpentAmount(userId, savedTransaction.getCategory(),
+            updateBudgetSpentAmount(walletId, savedTransaction.getCategory(),
                     savedTransaction.getDate().getYear(), savedTransaction.getDate().getMonthValue(),
                     savedTransaction.getAmount());
         }
 
+        // Gửi thông báo WebSocket
+        messagingTemplate.convertAndSend("/topic/wallet/" + walletId, 
+                Map.of("message", "DATA_UPDATED", "type", "TRANSACTION_CREATED"));
+
         return savedTransaction;
     }
 
-    public Transaction updateTransaction(UUID transactionId, Transaction transactionDetails, UUID userId) {
+    public Transaction updateTransaction(UUID transactionId, Transaction transactionDetails, UUID walletId, UUID userId) {
+        // Kiểm tra quyền truy cập
+        if (!walletService.isUserMemberOfWallet(walletId, userId)) {
+            throw new SecurityException("User is not a member of this wallet");
+        }
+
         Transaction existingTransaction = transactionRepository.findById(transactionId)
-                .filter(t -> t.getUser().getId().equals(userId))
+                .filter(t -> t.getWallet().getId().equals(walletId))
                 .orElseThrow(() -> new SecurityException("Transaction not found or access denied"));
 
         Transaction oldTransaction = new Transaction();
@@ -107,37 +135,50 @@ public class TransactionService {
 
         // Logic cập nhật budget - Sửa lại thành chữ thường
         if (oldTransaction.getType() == Transaction.TransactionType.expense) {
-            updateBudgetSpentAmount(userId, oldTransaction.getCategory(),
+            updateBudgetSpentAmount(walletId, oldTransaction.getCategory(),
                     oldTransaction.getDate().getYear(), oldTransaction.getDate().getMonthValue(),
                     oldTransaction.getAmount().negate());
         }
 
         if (updatedTransaction.getType() == Transaction.TransactionType.expense) {
-            updateBudgetSpentAmount(userId, updatedTransaction.getCategory(),
+            updateBudgetSpentAmount(walletId, updatedTransaction.getCategory(),
                     updatedTransaction.getDate().getYear(), updatedTransaction.getDate().getMonthValue(),
                     updatedTransaction.getAmount());
         }
 
+        // Gửi thông báo WebSocket
+        messagingTemplate.convertAndSend("/topic/wallet/" + walletId, 
+                Map.of("message", "DATA_UPDATED", "type", "TRANSACTION_UPDATED"));
+
         return updatedTransaction;
     }
 
-    public void deleteTransaction(UUID transactionId, UUID userId) {
+    public void deleteTransaction(UUID transactionId, UUID walletId, UUID userId) {
+        // Kiểm tra quyền truy cập
+        if (!walletService.isUserMemberOfWallet(walletId, userId)) {
+            throw new SecurityException("User is not a member of this wallet");
+        }
+
         Transaction transactionToDelete = transactionRepository.findById(transactionId)
-                .filter(t -> t.getUser().getId().equals(userId))
+                .filter(t -> t.getWallet().getId().equals(walletId))
                 .orElseThrow(() -> new SecurityException("Transaction not found or access denied to delete"));
 
         // Logic cập nhật budget - Sửa lại thành chữ thường
         if (transactionToDelete.getType() == Transaction.TransactionType.expense) {
-            updateBudgetSpentAmount(userId, transactionToDelete.getCategory(),
+            updateBudgetSpentAmount(walletId, transactionToDelete.getCategory(),
                     transactionToDelete.getDate().getYear(), transactionToDelete.getDate().getMonthValue(),
                     transactionToDelete.getAmount().negate());
         }
 
         transactionRepository.delete(transactionToDelete);
+
+        // Gửi thông báo WebSocket
+        messagingTemplate.convertAndSend("/topic/wallet/" + walletId, 
+                Map.of("message", "DATA_UPDATED", "type", "TRANSACTION_DELETED"));
     }
 
-    private void updateBudgetSpentAmount(UUID userId, String category, int year, int month, BigDecimal amountChange) {
-        Optional<Budget> budgetOpt = budgetRepository.findByUser_IdAndCategoryAndMonthAndYear(userId, category, month, year);
+    private void updateBudgetSpentAmount(UUID walletId, String category, int year, int month, BigDecimal amountChange) {
+        Optional<Budget> budgetOpt = budgetRepository.findByWallet_IdAndCategoryAndMonthAndYear(walletId, category, month, year);
 
         budgetOpt.ifPresent(budget -> {
             BigDecimal newSpentAmount = budget.getSpentAmount().add(amountChange);

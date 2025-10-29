@@ -11,12 +11,12 @@ import java.util.UUID;
 @Repository
 public interface BudgetRepository extends JpaRepository<Budget, UUID> {
 
-    // Tìm tất cả ngân sách của người dùng cho một tháng/năm cụ thể
-    List<Budget> findByUser_IdAndMonthAndYear(UUID userId, int month, int year);
+    // Tìm tất cả ngân sách của ví cho một tháng/năm cụ thể
+    List<Budget> findByWallet_IdAndMonthAndYear(UUID walletId, int month, int year);
 
     // Dùng để kiểm tra khi tạo/cập nhật
-    Optional<Budget> findByUser_IdAndCategoryAndMonthAndYear(UUID userId, String category, int month, int year);
+    Optional<Budget> findByWallet_IdAndCategoryAndMonthAndYear(UUID walletId, String category, int month, int year);
 
     // Dùng để xóa (kiểm tra quyền sở hữu)
-    Optional<Budget> findByIdAndUser_Id(UUID id, UUID userId);
+    Optional<Budget> findByIdAndWallet_Id(UUID id, UUID walletId);
 }

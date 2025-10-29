@@ -30,39 +30,44 @@ public class BudgetController {
 
     /**
      * Lấy tất cả ngân sách (và chi tiêu thực tế) cho một tháng/năm.
-     * VD: GET /api/budgets?month=10&year=2025
+     * VD: GET /api/budgets?walletId=xxx&month=10&year=2025
      */
     @GetMapping
     public ResponseEntity<List<BudgetDTO>> getBudgets(
+            @RequestParam UUID walletId,
             @RequestParam int month,
             @RequestParam int year) {
 
         UUID userId = getCurrentUserId();
-        List<BudgetDTO> budgets = budgetService.getBudgetsForMonth(userId, month, year);
+        List<BudgetDTO> budgets = budgetService.getBudgetsForMonth(walletId, userId, month, year);
         return ResponseEntity.ok(budgets);
     }
 
     /**
      * Tạo hoặc cập nhật một ngân sách.
-     * POST /api/budgets
+     * POST /api/budgets?walletId=xxx
      * Body: { "category": "Ăn uống", "amount": 5000000, "month": 10, "year": 2025 }
      */
     @PostMapping
-    public ResponseEntity<Budget> createOrUpdateBudget(@RequestBody Budget budget) {
+    public ResponseEntity<Budget> createOrUpdateBudget(
+            @RequestParam UUID walletId,
+            @RequestBody Budget budget) {
         UUID userId = getCurrentUserId();
-        Budget savedBudget = budgetService.createOrUpdateBudget(budget, userId);
+        Budget savedBudget = budgetService.createOrUpdateBudget(budget, walletId, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedBudget);
     }
 
     /**
      * Xóa một ngân sách.
-     * DELETE /api/budgets/uuid-cua-budget
+     * DELETE /api/budgets/uuid-cua-budget?walletId=xxx
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBudget(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteBudget(
+            @PathVariable UUID id,
+            @RequestParam UUID walletId) {
         UUID userId = getCurrentUserId();
         try {
-            budgetService.deleteBudget(id, userId);
+            budgetService.deleteBudget(id, walletId, userId);
             return ResponseEntity.noContent().build();
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

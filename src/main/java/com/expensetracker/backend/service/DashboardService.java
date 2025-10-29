@@ -20,17 +20,25 @@ public class DashboardService {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    public DashboardStats getDashboardStats(UUID userId, int month, int year) {
+    @Autowired
+    private WalletService walletService;
+
+    public DashboardStats getDashboardStats(UUID walletId, UUID userId, int month, int year) {
+        // Kiểm tra quyền truy cập
+        if (!walletService.isUserMemberOfWallet(walletId, userId)) {
+            throw new SecurityException("User is not a member of this wallet");
+        }
+
         // --- TÍNH TOÁN DỮ LIỆU CHO THÁNG HIỆN TẠI ---
 
         // 1. Lấy tổng thu nhập CHO THÁNG ĐÃ CHỌN
-        BigDecimal totalIncomeForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(userId, Transaction.TransactionType.income, month, year);
+        BigDecimal totalIncomeForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(walletId, Transaction.TransactionType.income, month, year);
 
         // 2. Lấy tổng chi tiêu CHO THÁNG ĐÃ CHỌN
-        BigDecimal totalExpensesForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(userId, Transaction.TransactionType.expense, month, year);
+        BigDecimal totalExpensesForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(walletId, Transaction.TransactionType.expense, month, year);
 
         // 3. Lấy chi tiêu theo danh mục cho tháng
-        List<Map<String, Object>> expenseByCategoryData = transactionRepository.findExpenseByCategoryAndMonthAndYear(userId, month, year);
+        List<Map<String, Object>> expenseByCategoryData = transactionRepository.findExpenseByCategoryAndMonthAndYear(walletId, month, year);
         List<CategoryExpense> expenseByCategory = expenseByCategoryData.stream()
                 .map(item -> new CategoryExpense(
                         (String) item.get("category"),
@@ -39,16 +47,16 @@ public class DashboardService {
                 .collect(Collectors.toList());
 
         // 4. Lấy các giao dịch gần đây cho tháng
-        List<Transaction> recentTransactions = transactionRepository.findRecentTransactionsByMonthAndYear(userId, month, year, PageRequest.of(0, 5));
+        List<Transaction> recentTransactions = transactionRepository.findRecentTransactionsByMonthAndYear(walletId, month, year, PageRequest.of(0, 5));
 
         // --- TÍNH TOÁN SỐ DƯ TỔNG CỘNG (CUMULATIVE BALANCE) ---
         // --- SỬA LỖI LOGIC QUAN TRỌNG NHẤT Ở ĐÂY ---
 
         // 5a. Lấy tổng thu nhập TỪ TRƯỚC ĐẾN NAY (sử dụng phương thức cũ không có bộ lọc tháng/năm)
-        BigDecimal totalIncomeAllTime = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.income);
+        BigDecimal totalIncomeAllTime = transactionRepository.sumAmountByTypeAndWalletId(walletId, Transaction.TransactionType.income);
 
         // 5b. Lấy tổng chi tiêu TỪ TRƯỚC ĐẾN NAY
-        BigDecimal totalExpensesAllTime = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.expense);
+        BigDecimal totalExpensesAllTime = transactionRepository.sumAmountByTypeAndWalletId(walletId, Transaction.TransactionType.expense);
 
         // 5c. Tính toán số dư TỔNG CỘNG
         BigDecimal cumulativeBalance = totalIncomeAllTime.subtract(totalExpensesAllTime);
