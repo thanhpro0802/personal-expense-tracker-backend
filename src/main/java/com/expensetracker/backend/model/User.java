@@ -1,11 +1,14 @@
 package com.expensetracker.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.time.LocalDateTime;
 // import java.util.Set; // Uncomment nếu bạn muốn thêm quan hệ ngay
@@ -40,6 +43,16 @@ public class User {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
+    @JsonIgnore
+    @Builder.Default
+    private Set<Wallet> ownedWallets = new HashSet<>();
+
+    @ManyToMany(mappedBy = "members")
+    @JsonIgnore
+    @Builder.Default
+    private Set<Wallet> joinedWallets = new HashSet<>();
 
 
     @PrePersist

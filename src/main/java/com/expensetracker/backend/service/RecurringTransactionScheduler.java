@@ -49,7 +49,7 @@ public class RecurringTransactionScheduler {
 
                     // 2. Tạo giao dịch thực tế dựa trên thông tin của tác vụ
                     Transaction newTransaction = Transaction.builder()
-                            .user(task.getUser())
+                            .wallet(task.getWallet())
                             .title(task.getTitle())
                             .amount(task.getAmount())
                             .category(task.getCategory())

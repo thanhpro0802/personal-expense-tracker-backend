@@ -13,6 +13,7 @@ import com.expensetracker.backend.security.jwt.JwtUtils;
 import com.expensetracker.backend.security.services.UserDetailsImpl;
 import com.expensetracker.backend.service.RefreshTokenService;
 import com.expensetracker.backend.service.UserService;
+import com.expensetracker.backend.service.WalletService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,13 +33,16 @@ public class AuthController {
     private final UserService userService; // Sử dụng UserService để tạo người dùng
     private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
+    private final WalletService walletService;
 
     public AuthController(AuthenticationManager authenticationManager, UserService userService, 
-                         JwtUtils jwtUtils, RefreshTokenService refreshTokenService) {
+                         JwtUtils jwtUtils, RefreshTokenService refreshTokenService,
+                         WalletService walletService) {
         this.authenticationManager = authenticationManager;
         this.userService = userService;
         this.jwtUtils = jwtUtils;
         this.refreshTokenService = refreshTokenService;
+        this.walletService = walletService;
     }
 
     @PostMapping("/signin")
@@ -87,7 +91,11 @@ public class AuthController {
         user.setPasswordHash(signupRequest.getPassword()); // Mật khẩu sẽ được mã hóa trong UserService
 
         try {
-            userService.createUser(user); // Gọi UserService để lưu người dùng
+            User newUser = userService.createUser(user); // Gọi UserService để lưu người dùng
+            
+            // Tạo ví mặc định cho người dùng mới
+            walletService.createWallet("Ví cá nhân", newUser.getId());
+            
             return ResponseEntity.status(HttpStatus.CREATED).body(new MessageResponse("User registered successfully!"));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new MessageResponse("Error: " + e.getMessage()));

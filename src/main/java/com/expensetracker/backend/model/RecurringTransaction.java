@@ -25,9 +25,9 @@ public class RecurringTransaction {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "wallet_id", nullable = false)
     @JsonIgnore
-    private User user;
+    private Wallet wallet;
 
     // Thông tin giống như Transaction
     @Column(nullable = false)

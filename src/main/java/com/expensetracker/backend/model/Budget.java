@@ -13,8 +13,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "budgets", uniqueConstraints = {
-        // Đảm bảo mỗi người dùng chỉ có 1 ngân sách cho 1 danh mục trong 1 tháng/năm
-        @UniqueConstraint(columnNames = {"user_id", "category", "month", "year"})
+        // Đảm bảo mỗi ví chỉ có 1 ngân sách cho 1 danh mục trong 1 tháng/năm
+        @UniqueConstraint(columnNames = {"wallet_id", "category", "month", "year"})
 })
 @Data
 @NoArgsConstructor
@@ -27,9 +27,9 @@ public class Budget {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "wallet_id", nullable = false)
     @JsonIgnore
-    private User user;
+    private Wallet wallet;
 
     @Column(nullable = false)
     private String category;
