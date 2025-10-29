@@ -121,8 +121,10 @@ ALTER TABLE budgets ALTER COLUMN wallet_id SET NOT NULL;
 ALTER TABLE budgets ADD CONSTRAINT fk_budget_wallet 
     FOREIGN KEY (wallet_id) REFERENCES wallets(id);
 
--- Drop old unique constraint and add new one
+-- Drop old unique constraint and add new one (check actual constraint name in your database)
+-- You may need to query: SELECT constraint_name FROM information_schema.table_constraints WHERE table_name = 'budgets' AND constraint_type = 'UNIQUE';
 ALTER TABLE budgets DROP CONSTRAINT IF EXISTS budgets_user_id_category_month_year_key;
+ALTER TABLE budgets DROP CONSTRAINT IF EXISTS uq_user_category_month_year; -- alternative common name
 ALTER TABLE budgets ADD CONSTRAINT budgets_wallet_category_month_year_unique 
     UNIQUE (wallet_id, category, "month", "year");
 
