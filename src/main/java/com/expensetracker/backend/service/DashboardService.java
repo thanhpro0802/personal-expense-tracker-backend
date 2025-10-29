@@ -5,20 +5,14 @@ import com.expensetracker.backend.dto.DashboardStats.CategoryExpense;
 import com.expensetracker.backend.model.Transaction;
 import com.expensetracker.backend.repository.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class DashboardService {
@@ -26,65 +20,51 @@ public class DashboardService {
     @Autowired
     private TransactionRepository transactionRepository;
 
-    /**
-     * Lấy tất cả các chỉ số thống kê cho dashboard một cách hiệu quả.
-     * Mọi tính toán tổng hợp đều được thực hiện ở tầng database.
-     * @param userId ID của người dùng
-     * @return Đối tượng DashboardStats chứa tất cả thông tin.
-     */
-    public DashboardStats getDashboardStats(UUID userId) {
-        // 1. Lấy tổng thu nhập
-        BigDecimal totalIncome = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.income);
+    public DashboardStats getDashboardStats(UUID userId, int month, int year) {
+        // --- TÍNH TOÁN DỮ LIỆU CHO THÁNG HIỆN TẠI ---
 
-        // 2. Lấy tổng chi tiêu
-        BigDecimal totalExpenses = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.expense);
+        // 1. Lấy tổng thu nhập CHO THÁNG ĐÃ CHỌN
+        BigDecimal totalIncomeForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(userId, Transaction.TransactionType.income, month, year);
 
-        // 3. Tính toán số dư hiện tại
-        BigDecimal currentBalance = totalIncome.subtract(totalExpenses);
+        // 2. Lấy tổng chi tiêu CHO THÁNG ĐÃ CHỌN
+        BigDecimal totalExpensesForMonth = transactionRepository.sumAmountByTypeAndMonthAndYear(userId, Transaction.TransactionType.expense, month, year);
 
-        // 4. Lấy chi tiêu theo danh mục
-        List<Map<String, Object>> expenseByCategoryData = transactionRepository.findExpenseByCategory(userId);
-        List<DashboardStats.CategoryExpense> expenseByCategory = expenseByCategoryData.stream()
-                .map(item -> new DashboardStats.CategoryExpense(
+        // 3. Lấy chi tiêu theo danh mục cho tháng
+        List<Map<String, Object>> expenseByCategoryData = transactionRepository.findExpenseByCategoryAndMonthAndYear(userId, month, year);
+        List<CategoryExpense> expenseByCategory = expenseByCategoryData.stream()
+                .map(item -> new CategoryExpense(
                         (String) item.get("category"),
                         (BigDecimal) item.get("amount")
                 ))
                 .collect(Collectors.toList());
 
-        // 5. Lấy dữ liệu thu/chi theo tháng
-        List<Map<String, Object>> monthlySummaryData = transactionRepository.findMonthlySummary(userId);
-        List<DashboardStats.MonthlyData> monthlyData = monthlySummaryData.stream()
-                .map(item -> new DashboardStats.MonthlyData(
-                        (String) item.get("month"),
-                        (BigDecimal) item.get("income"),
-                        (BigDecimal) item.get("expenses")
-                ))
-                .collect(Collectors.toList());
+        // 4. Lấy các giao dịch gần đây cho tháng
+        List<Transaction> recentTransactions = transactionRepository.findRecentTransactionsByMonthAndYear(userId, month, year, PageRequest.of(0, 5));
 
-        // 6. Tạo và trả về đối tượng DTO với constructor chính xác
+        // --- TÍNH TOÁN SỐ DƯ TỔNG CỘNG (CUMULATIVE BALANCE) ---
+        // --- SỬA LỖI LOGIC QUAN TRỌNG NHẤT Ở ĐÂY ---
+
+        // 5a. Lấy tổng thu nhập TỪ TRƯỚC ĐẾN NAY (sử dụng phương thức cũ không có bộ lọc tháng/năm)
+        BigDecimal totalIncomeAllTime = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.income);
+
+        // 5b. Lấy tổng chi tiêu TỪ TRƯỚC ĐẾN NAY
+        BigDecimal totalExpensesAllTime = transactionRepository.sumAmountByTypeAndUserId(userId, Transaction.TransactionType.expense);
+
+        // 5c. Tính toán số dư TỔNG CỘNG
+        BigDecimal cumulativeBalance = totalIncomeAllTime.subtract(totalExpensesAllTime);
+
+
+        // Dữ liệu lịch sử không cần thiết cho màn hình này
+        List<DashboardStats.MonthlyData> monthlyData = List.of();
+
+        // 6. Tạo và trả về DTO với dữ liệu ĐÚNG theo yêu cầu
         return new DashboardStats(
-                totalIncome,
-                totalExpenses,
-                currentBalance,
-                monthlyData,          // <-- Đã sửa: truyền monthlyData
-                expenseByCategory
+                totalIncomeForMonth,      // <-- Dữ liệu của tháng
+                totalExpensesForMonth,    // <-- Dữ liệu của tháng
+                cumulativeBalance,        // <-- Dữ liệu TỔNG CỘNG
+                monthlyData,
+                expenseByCategory,
+                recentTransactions
         );
-    }
-
-    /**
-     * Lấy các giao dịch gần đây nhất cho người dùng.
-     * @param userId ID của người dùng
-     * @param limit Số lượng giao dịch cần lấy
-     * @return Một danh sách (List) các giao dịch
-     */
-    public List<Transaction> getRecentTransactions(UUID userId, int limit) {
-        // Tạo yêu cầu phân trang: trang đầu tiên (0), số lượng 'limit', sắp xếp theo ngày giảm dần
-        Pageable pageable = PageRequest.of(0, limit, Sort.by("date").descending());
-
-        // Gọi repository, nó sẽ trả về một đối tượng Page<Transaction>
-        Page<Transaction> transactionPage = transactionRepository.findByUserId(userId, pageable);
-
-        // SỬA LỖI Ở ĐÂY: Lấy danh sách nội dung từ đối tượng Page
-        return transactionPage.getContent();
     }
 }

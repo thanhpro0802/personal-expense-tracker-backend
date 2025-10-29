@@ -22,13 +22,13 @@ public class RecurringTransactionService {
         userRef.setId(userId);
         rt.setUser(userRef);
 
-        // Đặt ngày thực thi tiếp theo là ngày bắt đầu
         rt.setNextExecutionDate(rt.getStartDate());
         rt.setActive(true);
 
         return recurringRepository.save(rt);
     }
 
+    @Transactional(readOnly = true)
     public List<RecurringTransaction> getAllForUser(UUID userId) {
         return recurringRepository.findByUser_Id(userId);
     }
@@ -37,31 +37,43 @@ public class RecurringTransactionService {
         RecurringTransaction existing = recurringRepository.findByIdAndUser_Id(id, userId)
                 .orElseThrow(() -> new SecurityException("Recurring transaction not found or access denied"));
 
-        // Cập nhật các trường
-        existing.setTitle(details.getTitle());
-        existing.setAmount(details.getAmount());
-        existing.setCategory(details.getCategory());
-        existing.setType(details.getType());
-        existing.setFrequency(details.getFrequency());
-        existing.setStartDate(details.getStartDate());
-        existing.setEndDate(details.getEndDate());
-        existing.setActive(details.isActive());
+        // --- SỬA LỖI LOGIC QUAN TRỌNG NHẤT Ở ĐÂY ---
+        // Chỉ cập nhật các trường nếu chúng được cung cấp trong yêu cầu (không phải null)
 
-        // Nếu người dùng cập nhật ngày bắt đầu, ta cũng nên cập nhật ngày thực thi tiếp theo
-        if (details.getNextExecutionDate() != null) {
-            existing.setNextExecutionDate(details.getNextExecutionDate());
-        } else {
+        if (details.getTitle() != null) {
+            existing.setTitle(details.getTitle());
+        }
+        if (details.getAmount() != null) {
+            existing.setAmount(details.getAmount());
+        }
+        if (details.getCategory() != null) {
+            existing.setCategory(details.getCategory());
+        }
+        if (details.getType() != null) {
+            existing.setType(details.getType());
+        }
+        if (details.getFrequency() != null) {
+            existing.setFrequency(details.getFrequency());
+        }
+        if (details.getStartDate() != null) {
+            existing.setStartDate(details.getStartDate());
+            // Khi ngày bắt đầu thay đổi, reset lại ngày thực thi tiếp theo
             existing.setNextExecutionDate(details.getStartDate());
         }
 
+        // Luôn cho phép cập nhật endDate thành null
+        existing.setEndDate(details.getEndDate());
+
+        // Cập nhật trạng thái active
+        existing.setActive(details.isActive());
 
         return recurringRepository.save(existing);
     }
 
     public void deleteRecurringTransaction(UUID id, UUID userId) {
-        RecurringTransaction existing = recurringRepository.findByIdAndUser_Id(id, userId)
-                .orElseThrow(() -> new SecurityException("Recurring transaction not found or access denied"));
-
-        recurringRepository.delete(existing);
+        if (!recurringRepository.existsByIdAndUser_Id(id, userId)) {
+            throw new SecurityException("Recurring transaction not found or access denied");
+        }
+        recurringRepository.deleteById(id);
     }
 }

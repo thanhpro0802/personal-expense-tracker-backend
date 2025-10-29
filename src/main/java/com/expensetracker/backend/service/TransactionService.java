@@ -1,7 +1,9 @@
 package com.expensetracker.backend.service;
 
+import com.expensetracker.backend.model.Budget;
 import com.expensetracker.backend.model.Transaction;
 import com.expensetracker.backend.model.User;
+import com.expensetracker.backend.repository.BudgetRepository;
 import com.expensetracker.backend.repository.TransactionRepository;
 import com.expensetracker.backend.service.specifications.TransactionSpecifications;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,9 +15,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -23,21 +27,20 @@ import java.util.UUID;
 public class TransactionService {
 
     private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
 
     @Autowired
-    public TransactionService(TransactionRepository transactionRepository) {
+    public TransactionService(TransactionRepository transactionRepository, BudgetRepository budgetRepository) {
         this.transactionRepository = transactionRepository;
+        this.budgetRepository = budgetRepository;
     }
 
     public Page<Transaction> getFilteredTransactions(UUID userId, String type, String category, String search,
                                                      LocalDate dateFrom, LocalDate dateTo,
                                                      int page, int size, String[] sort) {
 
-        // --- SỬA LỖI DEPRECATION TẠI ĐÂY ---
-        // Bắt đầu trực tiếp với Specification đầu tiên, không cần dùng Specification.where()
         Specification<Transaction> spec = TransactionSpecifications.withUserId(userId);
 
-        // Các điều kiện sau được nối vào bằng .and() như bình thường
         if (type != null && !type.isEmpty() && !type.equalsIgnoreCase("all")) {
             spec = spec.and(TransactionSpecifications.withType(type));
         }
@@ -54,7 +57,6 @@ public class TransactionService {
             spec = spec.and(TransactionSpecifications.withDateTo(dateTo));
         }
 
-        // Xử lý thông tin sắp xếp (sorting)
         List<Sort.Order> orders = new ArrayList<>();
         if (sort[0].contains(",")) {
             for (String sortOrder : sort) {
@@ -65,10 +67,7 @@ public class TransactionService {
             orders.add(new Sort.Order(Sort.Direction.fromString(sort[1]), sort[0]));
         }
 
-        // Tạo đối tượng Pageable
         Pageable pageable = PageRequest.of(page, size, Sort.by(orders));
-
-        // Thực thi truy vấn
         return transactionRepository.findAll(spec, pageable);
     }
 
@@ -76,7 +75,16 @@ public class TransactionService {
         User userReference = new User();
         userReference.setId(userId);
         transaction.setUser(userReference);
-        return transactionRepository.save(transaction);
+        Transaction savedTransaction = transactionRepository.save(transaction);
+
+        // Logic cập nhật budget - Sửa lại thành chữ thường
+        if (savedTransaction.getType() == Transaction.TransactionType.expense) {
+            updateBudgetSpentAmount(userId, savedTransaction.getCategory(),
+                    savedTransaction.getDate().getYear(), savedTransaction.getDate().getMonthValue(),
+                    savedTransaction.getAmount());
+        }
+
+        return savedTransaction;
     }
 
     public Transaction updateTransaction(UUID transactionId, Transaction transactionDetails, UUID userId) {
@@ -84,23 +92,57 @@ public class TransactionService {
                 .filter(t -> t.getUser().getId().equals(userId))
                 .orElseThrow(() -> new SecurityException("Transaction not found or access denied"));
 
+        Transaction oldTransaction = new Transaction();
+        oldTransaction.setType(existingTransaction.getType());
+        oldTransaction.setAmount(existingTransaction.getAmount());
+        oldTransaction.setCategory(existingTransaction.getCategory());
+        oldTransaction.setDate(existingTransaction.getDate());
+
         existingTransaction.setTitle(transactionDetails.getTitle());
         existingTransaction.setAmount(transactionDetails.getAmount());
         existingTransaction.setDate(transactionDetails.getDate());
         existingTransaction.setCategory(transactionDetails.getCategory());
         existingTransaction.setType(transactionDetails.getType());
+        Transaction updatedTransaction = transactionRepository.save(existingTransaction);
 
-        return transactionRepository.save(existingTransaction);
+        // Logic cập nhật budget - Sửa lại thành chữ thường
+        if (oldTransaction.getType() == Transaction.TransactionType.expense) {
+            updateBudgetSpentAmount(userId, oldTransaction.getCategory(),
+                    oldTransaction.getDate().getYear(), oldTransaction.getDate().getMonthValue(),
+                    oldTransaction.getAmount().negate());
+        }
+
+        if (updatedTransaction.getType() == Transaction.TransactionType.expense) {
+            updateBudgetSpentAmount(userId, updatedTransaction.getCategory(),
+                    updatedTransaction.getDate().getYear(), updatedTransaction.getDate().getMonthValue(),
+                    updatedTransaction.getAmount());
+        }
+
+        return updatedTransaction;
     }
 
     public void deleteTransaction(UUID transactionId, UUID userId) {
-        if (!transactionRepository.existsById(transactionId)) {
-            throw new RuntimeException("Transaction not found");
-        }
-        transactionRepository.findById(transactionId)
+        Transaction transactionToDelete = transactionRepository.findById(transactionId)
                 .filter(t -> t.getUser().getId().equals(userId))
-                .orElseThrow(() -> new SecurityException("Access denied to delete this transaction"));
+                .orElseThrow(() -> new SecurityException("Transaction not found or access denied to delete"));
 
-        transactionRepository.deleteById(transactionId);
+        // Logic cập nhật budget - Sửa lại thành chữ thường
+        if (transactionToDelete.getType() == Transaction.TransactionType.expense) {
+            updateBudgetSpentAmount(userId, transactionToDelete.getCategory(),
+                    transactionToDelete.getDate().getYear(), transactionToDelete.getDate().getMonthValue(),
+                    transactionToDelete.getAmount().negate());
+        }
+
+        transactionRepository.delete(transactionToDelete);
+    }
+
+    private void updateBudgetSpentAmount(UUID userId, String category, int year, int month, BigDecimal amountChange) {
+        Optional<Budget> budgetOpt = budgetRepository.findByUser_IdAndCategoryAndMonthAndYear(userId, category, month, year);
+
+        budgetOpt.ifPresent(budget -> {
+            BigDecimal newSpentAmount = budget.getSpentAmount().add(amountChange);
+            budget.setSpentAmount(newSpentAmount);
+            budgetRepository.save(budget);
+        });
     }
 }

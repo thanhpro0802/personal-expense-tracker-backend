@@ -32,6 +32,11 @@ public class RecurringTransaction {
     // Thông tin giống như Transaction
     @Column(nullable = false)
     private String title;
+
+    // --- THÊM TRƯỜNG BỊ THIẾU Ở ĐÂY ---
+    @Column
+    private String description; // Cho phép trường này có giá trị null
+
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount;
     @Column(nullable = false)

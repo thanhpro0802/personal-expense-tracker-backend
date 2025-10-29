@@ -12,14 +12,13 @@ import java.util.UUID;
 @Repository
 public interface RecurringTransactionRepository extends JpaRepository<RecurringTransaction, UUID> {
 
-    // Lấy tất cả các giao dịch định kỳ của một người dùng
     List<RecurringTransaction> findByUser_Id(UUID userId);
 
-    // Lấy một giao dịch cụ thể để cập nhật/xóa (kiểm tra quyền sở hữu)
     Optional<RecurringTransaction> findByIdAndUser_Id(UUID id, UUID userId);
 
-    // QUAN TRỌNG: Lấy tất cả các giao dịch đang hoạt động
-    // có ngày thực thi tiếp theo là hôm nay hoặc sớm hơn (để chạy)
-    // ✨ SỬA LỖI TẠI ĐÂY: Đổi "OnOrBefore" thành "LessThanEqual" ✨
+    // Tối ưu hóa cho việc xóa
+    boolean existsByIdAndUser_Id(UUID id, UUID userId);
+
+    // Phương thức cốt lõi cho bộ lập lịch
     List<RecurringTransaction> findByIsActiveTrueAndNextExecutionDateLessThanEqual(LocalDate date);
 }

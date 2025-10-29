@@ -2,7 +2,8 @@ package com.expensetracker.backend.service;
 
 import com.expensetracker.backend.model.RecurringTransaction;
 import com.expensetracker.backend.model.Transaction;
-import com.expensetracker.backend.repository.RecurringTransactionRepository; // Import repository
+import com.expensetracker.backend.repository.RecurringTransactionRepository;
+import com.expensetracker.backend.repository.TransactionRepository; // Import TransactionRepository
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,61 +20,70 @@ public class RecurringTransactionScheduler {
     private static final Logger logger = LoggerFactory.getLogger(RecurringTransactionScheduler.class);
 
     @Autowired
-    private RecurringTransactionRepository recurringRepository; // Đã inject repository
+    private RecurringTransactionRepository recurringRepository;
 
     @Autowired
-    private TransactionService transactionService;
+    private TransactionRepository transactionRepository; // Sử dụng TransactionRepository để lưu
 
     /**
-     * Chạy mỗi ngày vào 5:00 AM.
+     * Chạy mỗi ngày vào lúc 2 giờ sáng theo giờ server.
+     * CRON: Giây Phút Giờ Ngày Tháng NgàyTrongTuần
      */
-    @Scheduled(cron = "0 0 5 * * ?")
+    @Scheduled(cron = "0 0 2 * * ?")
     @Transactional
     public void processRecurringTransactions() {
         LocalDate today = LocalDate.now();
-        logger.info("Running RecurringTransactionScheduler at {}", today);
+        logger.info("Running RecurringTransactionScheduler for date: {}", today);
 
-        // ✨ SỬA LỖI TẠI ĐÂY: Gọi tên phương thức mới ✨
+        // 1. Lấy tất cả các tác vụ đang hoạt động và đã đến hạn hoặc quá hạn
         List<RecurringTransaction> tasksToRun = recurringRepository
-                .findByIsActiveTrueAndNextExecutionDateLessThanEqual(today); // <-- Đổi tên ở đây
+                .findByIsActiveTrueAndNextExecutionDateLessThanEqual(today);
 
         logger.info("Found {} recurring tasks to process.", tasksToRun.size());
 
         for (RecurringTransaction task : tasksToRun) {
-            try {
-                // Tạo giao dịch thực tế
-                Transaction newTransaction = Transaction.builder()
-                        .user(task.getUser())
-                        .title(task.getTitle())
-                        .amount(task.getAmount())
-                        .category(task.getCategory())
-                        .type(task.getType())
-                        .date(task.getNextExecutionDate())
-                        .build();
+            // --- BỘ NÃO CỦA HỆ THỐNG: VÒNG LẶP "BẮT KỊP" (CATCH-UP LOOP) ---
+            while (task.isActive() && !task.getNextExecutionDate().isAfter(today)) {
+                try {
+                    logger.info("Processing task ID: {} for execution date: {}", task.getId(), task.getNextExecutionDate());
 
-                transactionService.createTransaction(newTransaction, task.getUser().getId());
+                    // 2. Tạo giao dịch thực tế dựa trên thông tin của tác vụ
+                    Transaction newTransaction = Transaction.builder()
+                            .user(task.getUser())
+                            .title(task.getTitle())
+                            .amount(task.getAmount())
+                            .category(task.getCategory())
+                            .type(task.getType())
+                            .date(task.getNextExecutionDate()) // Ngày giao dịch là ngày lẽ ra nó phải được thực thi
+                            .build();
 
-                // Tính toán ngày thực thi tiếp theo
-                LocalDate newNextExecutionDate = calculateNextExecutionDate(
-                        task.getNextExecutionDate(),
-                        task.getFrequency()
-                );
+                    transactionRepository.save(newTransaction); // Lưu giao dịch mới
 
-                // Cập nhật tác vụ định kỳ
-                if (task.getEndDate() != null && newNextExecutionDate.isAfter(task.getEndDate())) {
-                    task.setActive(false);
-                    logger.info("Deactivating recurring task ID: {}", task.getId());
-                } else {
-                    task.setNextExecutionDate(newNextExecutionDate);
+                    // 3. Tính toán ngày thực thi tiếp theo
+                    LocalDate newNextExecutionDate = calculateNextExecutionDate(
+                            task.getNextExecutionDate(),
+                            task.getFrequency()
+                    );
+
+                    // 4. Cập nhật tác vụ định kỳ
+                    // Nếu có ngày kết thúc và ngày tiếp theo vượt qua ngày kết thúc -> vô hiệu hóa
+                    if (task.getEndDate() != null && newNextExecutionDate.isAfter(task.getEndDate())) {
+                        task.setActive(false);
+                        logger.info("Deactivating recurring task ID: {}. End date reached.", task.getId());
+                    } else {
+                        task.setNextExecutionDate(newNextExecutionDate);
+                    }
+
+                } catch (Exception e) {
+                    logger.error("Failed to process recurring task ID: {}. It will be retried next time.", task.getId(), e);
+                    // Dừng xử lý tác vụ này để tránh vòng lặp vô hạn nếu có lỗi nghiêm trọng
+                    break;
                 }
-
-                recurringRepository.save(task);
-                logger.info("Processed and updated next execution date for task ID: {}", task.getId());
-
-            } catch (Exception e) {
-                logger.error("Failed to process recurring task ID: {}", task.getId(), e);
             }
+            // 5. Lưu lại trạng thái cuối cùng của tác vụ (nextExecutionDate mới hoặc isActive=false)
+            recurringRepository.save(task);
         }
+        logger.info("Finished processing recurring tasks.");
     }
 
     private LocalDate calculateNextExecutionDate(LocalDate current, RecurringTransaction.Frequency freq) {

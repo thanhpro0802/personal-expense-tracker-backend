@@ -37,6 +37,11 @@ public class Budget {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal amount; // Số tiền ngân sách
 
+    // --- TRƯỜNG MỚI ĐƯỢC THÊM ---
+    @Column(nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal spentAmount = BigDecimal.ZERO; // Số tiền đã chi tiêu
+
     @Column(nullable = false)
     private int month; // 1-12
 

@@ -1,5 +1,7 @@
 package com.expensetracker.backend.dto;
 
+import com.expensetracker.backend.model.Transaction; // <-- 1. THÊM IMPORT
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -9,17 +11,31 @@ public class DashboardStats {
     private BigDecimal currentBalance;
     private List<MonthlyData> monthlyData;
     private List<CategoryExpense> expenseByCategory;
+    private List<Transaction> recentTransactions; // <-- 2. THÊM TRƯỜNG MỚI
+
     // Constructor, getters, setters
 
-    public DashboardStats(BigDecimal totalIncome, BigDecimal totalExpenses, BigDecimal currentBalance, List<MonthlyData> monthlyData, List<CategoryExpense> expenseByCategory) {
+    // <-- 3. CẬP NHẬT CONSTRUCTOR ĐỂ NHẬN THAM SỐ THỨ 6 -->
+    public DashboardStats(BigDecimal totalIncome, BigDecimal totalExpenses, BigDecimal currentBalance, List<MonthlyData> monthlyData, List<CategoryExpense> expenseByCategory, List<Transaction> recentTransactions) {
         this.totalIncome = totalIncome;
         this.totalExpenses = totalExpenses;
         this.currentBalance = currentBalance;
         this.monthlyData = monthlyData;
-        this.expenseByCategory = expenseByCategory; // <-- THÊM DÒNG NÀY
+        this.expenseByCategory = expenseByCategory;
+        this.recentTransactions = recentTransactions; // <-- Gán giá trị cho trường mới
     }
 
     public DashboardStats() {}
+
+    // --- 4. THÊM GETTER VÀ SETTER CHO TRƯỜNG MỚI ---
+    public List<Transaction> getRecentTransactions() {
+        return recentTransactions;
+    }
+
+    public void setRecentTransactions(List<Transaction> recentTransactions) {
+        this.recentTransactions = recentTransactions;
+    }
+    // ----------------------------------------------------
 
     public List<CategoryExpense> getExpenseByCategory() {
         return expenseByCategory;
@@ -117,7 +133,4 @@ public class DashboardStats {
             this.month = month;
         }
     }
-
-
-    // Getters & Setters
 }

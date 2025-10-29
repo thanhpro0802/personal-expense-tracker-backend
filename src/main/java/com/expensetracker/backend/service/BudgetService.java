@@ -4,14 +4,12 @@ import com.expensetracker.backend.dto.BudgetDTO;
 import com.expensetracker.backend.model.Budget;
 import com.expensetracker.backend.model.User;
 import com.expensetracker.backend.repository.BudgetRepository;
-import com.expensetracker.backend.repository.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -22,38 +20,25 @@ public class BudgetService {
     @Autowired
     private BudgetRepository budgetRepository;
 
-    @Autowired
-    private TransactionRepository transactionRepository;
+    // Không cần TransactionRepository ở đây nữa
 
     /**
-     * Lấy tất cả ngân sách của người dùng cho một tháng,
-     * đồng thời tính toán số tiền đã chi tiêu cho mỗi ngân sách đó.
+     * Lấy tất cả ngân sách của người dùng cho một tháng.
+     * Số tiền đã chi tiêu được lấy trực tiếp từ đối tượng Budget.
      */
     public List<BudgetDTO> getBudgetsForMonth(UUID userId, int month, int year) {
         // 1. Lấy tất cả các ngân sách đã đặt
         List<Budget> budgets = budgetRepository.findByUser_IdAndMonthAndYear(userId, month, year);
 
-        // 2. Lấy tổng chi tiêu thực tế theo từng danh mục
-        List<Map<String, Object>> spentData = transactionRepository
-                .findExpenseSumByCategoryAndMonthYear(userId, month, year);
-
-        // 3. Chuyển đổi dữ liệu chi tiêu sang Map để tra cứu nhanh
-        Map<String, BigDecimal> spentMap = spentData.stream()
-                .collect(Collectors.toMap(
-                        map -> (String) map.get("category"),
-                        map -> (BigDecimal) map.get("spent")
-                ));
-
-        // 4. Tạo DTO kết quả
+        // 2. Chuyển đổi sang DTO
         return budgets.stream().map(budget -> {
-            BigDecimal spentAmount = spentMap.getOrDefault(budget.getCategory(), BigDecimal.ZERO);
-            BigDecimal remainingAmount = budget.getAmount().subtract(spentAmount);
+            BigDecimal remainingAmount = budget.getAmount().subtract(budget.getSpentAmount());
 
             return new BudgetDTO(
                     budget.getId(),
                     budget.getCategory(),
                     budget.getAmount(),
-                    spentAmount,
+                    budget.getSpentAmount(), // Lấy trực tiếp từ budget
                     remainingAmount,
                     budget.getMonth(),
                     budget.getYear()
@@ -67,13 +52,13 @@ public class BudgetService {
      * Nếu chưa, nó sẽ tạo mới.
      */
     public Budget createOrUpdateBudget(Budget budgetRequest, UUID userId) {
-        // Kiểm tra xem ngân sách đã tồn tại chưa
+        // Tìm budget đã có, nếu không thì tạo mới và spentAmount sẽ mặc định là 0
         Budget budget = budgetRepository.findByUser_IdAndCategoryAndMonthAndYear(
                 userId,
                 budgetRequest.getCategory(),
                 budgetRequest.getMonth(),
                 budgetRequest.getYear()
-        ).orElse(new Budget()); // Nếu chưa, tạo mới
+        ).orElse(new Budget());
 
         // Liên kết với người dùng
         User userRef = new User();
@@ -85,6 +70,11 @@ public class BudgetService {
         budget.setAmount(budgetRequest.getAmount());
         budget.setMonth(budgetRequest.getMonth());
         budget.setYear(budgetRequest.getYear());
+
+        // Nếu là budget mới, spentAmount sẽ là 0 theo mặc định trong Entity
+        if (budget.getId() == null) {
+            budget.setSpentAmount(BigDecimal.ZERO);
+        }
 
         return budgetRepository.save(budget);
     }
