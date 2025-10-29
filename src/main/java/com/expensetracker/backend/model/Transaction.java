@@ -26,9 +26,14 @@ public class Transaction {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "user_id")
     @JsonIgnore // <-- SỬA LỖI Ở ĐÂY: Ngăn Jackson serialize trường này
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "wallet_id")
+    @JsonIgnore
+    private Wallet wallet;
 
     @Column(name = "title", nullable = false)
     private String title;
