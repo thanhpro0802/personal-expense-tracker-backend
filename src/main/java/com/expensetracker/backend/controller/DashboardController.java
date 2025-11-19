@@ -29,7 +29,6 @@ public class DashboardController {
     @GetMapping(value = "/stats", produces = "application/json")
     public ResponseEntity<?> getStats(
             @AuthenticationPrincipal UserDetailsImpl userDetails,
-            @RequestParam UUID walletId,
             @RequestParam int month,
             @RequestParam int year) {
 
@@ -38,15 +37,11 @@ public class DashboardController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         UUID userId = userDetails.getId();
-        logger.info("Fetching stats for userId: {}, walletId: {}, month: {}, year: {}", userId, walletId, month, year);
+        logger.info("Fetching stats for userId: {}, month: {}, year: {}", userId, month, year);
 
-        try {
-            DashboardStats stats = dashboardService.getDashboardStats(walletId, userId, month, year);
-            logger.info("Stats fetched successfully for userId: {} and walletId: {}", userId, walletId);
-            return ResponseEntity.ok(new ApiResponse<>(true, stats));
-        } catch (SecurityException e) {
-            logger.warn("Access denied for userId: {} to walletId: {}", userId, walletId);
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+        DashboardStats stats = dashboardService.getDashboardStats(userId, month, year);
+
+        logger.info("Stats fetched successfully for userId: {}", userId);
+        return ResponseEntity.ok(new ApiResponse<>(true, stats));
     }
 }

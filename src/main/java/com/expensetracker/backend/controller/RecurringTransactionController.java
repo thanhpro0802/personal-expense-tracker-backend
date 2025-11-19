@@ -20,30 +20,26 @@ public class RecurringTransactionController {
     private RecurringTransactionService recurringService;
 
     @GetMapping
-    public ResponseEntity<List<RecurringTransaction>> getAllRecurringTransactions(
-            @RequestParam UUID walletId,
-            @AuthenticationPrincipal UserDetailsImpl userDetails) {
-        List<RecurringTransaction> transactions = recurringService.getAllForWallet(walletId, userDetails.getId());
+    public ResponseEntity<List<RecurringTransaction>> getAllRecurringTransactions(@AuthenticationPrincipal UserDetailsImpl userDetails) {
+        List<RecurringTransaction> transactions = recurringService.getAllForUser(userDetails.getId());
         return ResponseEntity.ok(transactions);
     }
 
     @PostMapping
     public ResponseEntity<RecurringTransaction> createRecurringTransaction(
-            @RequestParam UUID walletId,
             @RequestBody RecurringTransaction rt,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
-        RecurringTransaction created = recurringService.createRecurringTransaction(rt, walletId, userDetails.getId());
+        RecurringTransaction created = recurringService.createRecurringTransaction(rt, userDetails.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<RecurringTransaction> updateRecurringTransaction(
             @PathVariable UUID id,
-            @RequestParam UUID walletId,
             @RequestBody RecurringTransaction details,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         try {
-            RecurringTransaction updated = recurringService.updateRecurringTransaction(id, details, walletId, userDetails.getId());
+            RecurringTransaction updated = recurringService.updateRecurringTransaction(id, details, userDetails.getId());
             return ResponseEntity.ok(updated);
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
@@ -53,10 +49,9 @@ public class RecurringTransactionController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteRecurringTransaction(
             @PathVariable UUID id,
-            @RequestParam UUID walletId,
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
         try {
-            recurringService.deleteRecurringTransaction(id, walletId, userDetails.getId());
+            recurringService.deleteRecurringTransaction(id, userDetails.getId());
             return ResponseEntity.noContent().build();
         } catch (SecurityException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

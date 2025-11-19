@@ -8,9 +8,9 @@ import java.util.UUID;
 
 public class TransactionSpecifications {
 
-    public static Specification<Transaction> withWalletId(UUID walletId) {
+    public static Specification<Transaction> withUserId(UUID userId) {
         return (root, query, criteriaBuilder) ->
-                criteriaBuilder.equal(root.get("wallet").get("id"), walletId);
+                criteriaBuilder.equal(root.get("user").get("id"), userId);
     }
 
     public static Specification<Transaction> withType(String type) {

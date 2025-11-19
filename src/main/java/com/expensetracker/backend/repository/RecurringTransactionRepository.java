@@ -12,12 +12,12 @@ import java.util.UUID;
 @Repository
 public interface RecurringTransactionRepository extends JpaRepository<RecurringTransaction, UUID> {
 
-    List<RecurringTransaction> findByWallet_Id(UUID walletId);
+    List<RecurringTransaction> findByUser_Id(UUID userId);
 
-    Optional<RecurringTransaction> findByIdAndWallet_Id(UUID id, UUID walletId);
+    Optional<RecurringTransaction> findByIdAndUser_Id(UUID id, UUID userId);
 
     // Tối ưu hóa cho việc xóa
-    boolean existsByIdAndWallet_Id(UUID id, UUID walletId);
+    boolean existsByIdAndUser_Id(UUID id, UUID userId);
 
     // Phương thức cốt lõi cho bộ lập lịch
     List<RecurringTransaction> findByIsActiveTrueAndNextExecutionDateLessThanEqual(LocalDate date);
