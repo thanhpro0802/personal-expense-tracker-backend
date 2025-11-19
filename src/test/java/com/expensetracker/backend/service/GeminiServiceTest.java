@@ -1,5 +1,6 @@
 package com.expensetracker.backend.service;
 
+import com.expensetracker.backend.dto.AIChatRequest;
 import com.expensetracker.backend.model.Transaction;
 import com.expensetracker.backend.model.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,15 +27,15 @@ class GeminiServiceTest {
     @BeforeEach
     void setUp() {
         geminiService = new GeminiService();
-        
+
         // Set up test user
         testUser = new User();
         testUser.setId(UUID.randomUUID());
         testUser.setUsername("testuser");
-        
+
         // Set up test transactions
         testTransactions = new ArrayList<>();
-        
+
         Transaction txn1 = Transaction.builder()
                 .id(UUID.randomUUID())
                 .user(testUser)
@@ -45,7 +46,7 @@ class GeminiServiceTest {
                 .type(Transaction.TransactionType.expense)
                 .build();
         testTransactions.add(txn1);
-        
+
         Transaction txn2 = Transaction.builder()
                 .id(UUID.randomUUID())
                 .user(testUser)
@@ -62,17 +63,59 @@ class GeminiServiceTest {
     void testBuildPrompt_WithTransactions_ShouldGenerateCorrectPrompt() {
         // Given
         String question = "How much did I spend on food?";
-        
-        // When
-        String prompt = geminiService.buildPrompt(testTransactions, question);
-        
+        List<AIChatRequest.HistoryMessage> history = null; // No history
+
+        // When using Reflection to call private method
+        String prompt = ReflectionTestUtils.invokeMethod(
+                geminiService,
+                "buildPrompt",
+                testTransactions,
+                question,
+                history
+        );
+
         // Then
         assertNotNull(prompt);
-        assertTrue(prompt.contains("You are a helpful financial advisor"));
-        assertTrue(prompt.contains("Transaction History:"));
+        assertTrue(prompt.contains("System: You are a helpful financial advisor"), "Should contain system instruction");
+        assertTrue(prompt.contains("--- Transaction History ---"), "Should contain transaction section");
         assertTrue(prompt.contains("2023-10-01: -50.00$ (Food) - Lunch"));
         assertTrue(prompt.contains("2023-10-05: +3000.00$ (Income) - Salary"));
-        assertTrue(prompt.contains("User Question: How much did I spend on food?"));
+        assertTrue(prompt.contains("--- User Question ---"));
+        assertTrue(prompt.contains(question));
+    }
+
+    @Test
+    void testBuildPrompt_WithHistory_ShouldIncludeConversationHistory() {
+        // Given
+        String question = "Why is it so high?";
+
+        List<AIChatRequest.HistoryMessage> history = new ArrayList<>();
+        AIChatRequest.HistoryMessage msg1 = new AIChatRequest.HistoryMessage();
+        msg1.setRole("user");
+        msg1.setContent("Total expense?");
+        history.add(msg1);
+
+        AIChatRequest.HistoryMessage msg2 = new AIChatRequest.HistoryMessage();
+        msg2.setRole("assistant");
+        msg2.setContent("It is $500.");
+        history.add(msg2);
+
+        // When
+        String prompt = ReflectionTestUtils.invokeMethod(
+                geminiService,
+                "buildPrompt",
+                testTransactions,
+                question,
+                history
+        );
+
+        // Then
+        assertNotNull(prompt);
+        assertTrue(prompt.contains("--- Conversation History ---"), "Should contain history section");
+        assertTrue(prompt.contains("User: Total expense?"), "Should contain user history");
+        assertTrue(prompt.contains("AI: It is $500."), "Should contain AI history");
+        assertTrue(prompt.contains("--- End History ---"));
+        assertTrue(prompt.contains(question));
     }
 
     @Test
@@ -80,38 +123,41 @@ class GeminiServiceTest {
         // Given
         List<Transaction> emptyList = new ArrayList<>();
         String question = "What is my balance?";
-        
+        List<AIChatRequest.HistoryMessage> history = new ArrayList<>();
+
         // When
-        String prompt = geminiService.buildPrompt(emptyList, question);
-        
+        String prompt = ReflectionTestUtils.invokeMethod(
+                geminiService,
+                "buildPrompt",
+                emptyList,
+                question,
+                history
+        );
+
         // Then
         assertNotNull(prompt);
-        assertTrue(prompt.contains("You are a helpful financial advisor"));
-        assertTrue(prompt.contains("Transaction History:"));
-        assertTrue(prompt.contains("User Question: What is my balance?"));
+        assertTrue(prompt.contains("No recent transactions found."));
+        assertTrue(prompt.contains(question));
     }
 
     @Test
-    void testBuildPrompt_WithExpenseType_ShouldHaveMinusSign() {
+    void testBuildPrompt_FormattingCheck() {
         // Given
-        String question = "Test question";
-        
+        String question = "Check format";
+        List<AIChatRequest.HistoryMessage> history = null;
+
         // When
-        String prompt = geminiService.buildPrompt(testTransactions, question);
-        
+        String prompt = ReflectionTestUtils.invokeMethod(
+                geminiService,
+                "buildPrompt",
+                testTransactions,
+                question,
+                history
+        );
+
         // Then
+        // Check basic markdown formatting elements implicitly expected
         assertTrue(prompt.contains("-50.00$"), "Expense should have minus sign");
-    }
-
-    @Test
-    void testBuildPrompt_WithIncomeType_ShouldHavePlusSign() {
-        // Given
-        String question = "Test question";
-        
-        // When
-        String prompt = geminiService.buildPrompt(testTransactions, question);
-        
-        // Then
         assertTrue(prompt.contains("+3000.00$"), "Income should have plus sign");
     }
 }
