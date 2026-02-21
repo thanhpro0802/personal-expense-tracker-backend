@@ -58,19 +58,29 @@ public class WebSecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration configuration = new CorsConfiguration();
-        // Đổi Collections.singletonList thành Arrays.asList và thêm link Frontend của bạn vào
+
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5173",
-                "https://<tên-miền-amplify-của-bạn>.amplifyapp.com" // Nhớ thay bằng link Amplify thật của bạn
+                "https://personal-expense-tracker-fron-git-375a1b-thanhpro0802s-projects.vercel.app"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
+
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS"
+        ));
+
+        configuration.setAllowedHeaders(Collections.singletonList("*"));
+
         configuration.setAllowCredentials(true);
+
         configuration.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", configuration);
+
         return source;
     }
 
