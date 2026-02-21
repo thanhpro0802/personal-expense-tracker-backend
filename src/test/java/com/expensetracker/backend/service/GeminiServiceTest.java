@@ -76,8 +76,8 @@ class GeminiServiceTest {
 
         // Then
         assertNotNull(prompt);
-        assertTrue(prompt.contains("System: You are a helpful financial advisor"), "Should contain system instruction");
-        assertTrue(prompt.contains("--- Transaction History ---"), "Should contain transaction section");
+        assertTrue(prompt.contains("System: You are a smart financial advisor"), "Should contain system instruction");
+        assertTrue(prompt.contains("--- Transaction Data ---"), "Should contain transaction section");
         assertTrue(prompt.contains("2023-10-01: -50.00$ (Food) - Lunch"));
         assertTrue(prompt.contains("2023-10-05: +3000.00$ (Income) - Salary"));
         assertTrue(prompt.contains("--- User Question ---"));

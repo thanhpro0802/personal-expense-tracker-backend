@@ -19,9 +19,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureWebMvc
 @TestPropertySource(properties = {
-    "spring.datasource.url=jdbc:h2:mem:testdb",
-    "spring.datasource.driver-class-name=org.h2.Driver",
-    "spring.jpa.hibernate.ddl-auto=create-drop"
+        "spring.datasource.url=jdbc:h2:mem:testdb",
+        "spring.datasource.driver-class-name=org.h2.Driver",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "jwt.secret=THIS_IS_A_TEST_SECRET_32CHARS_MIN_LENGTH_1234567890",
+        "jwt.access.expiration.ms=900000",
+        "jwt.refresh.expiration.ms=604800000",
+        "gemini.api.key=dummy-test-key" // <-- Thêm dòng này
 })
 public class AuthControllerIntegrationTest {
 

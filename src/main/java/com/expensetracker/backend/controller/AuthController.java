@@ -23,7 +23,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin(origins = "http://localhost:5173") // Đảm bảo CORS cho auth endpoints
+@CrossOrigin(origins = {"http://localhost:5173", "https://personal-expense-tracker-frontend-snowy.vercel.app/"}) // Đảm bảo CORS cho auth endpoints
 @RestController
 @RequestMapping("/api/auth") // Endpoint cho xác thực
 public class AuthController {

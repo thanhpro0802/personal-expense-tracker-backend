@@ -33,7 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "jwt.access.expiration.ms=900000",
         "jwt.refresh.expiration.ms=604800000",
         // CORS để match frontend
-        "server.port=0"
+        "server.port=0",
+        // Thêm giá trị giả cho gemini api key để Spring không báo lỗi thiếu placeholder
+        "gemini.api.key=dummy-test-key"
 })
 class AuthSigninSecurityIntegrationTest {
 
